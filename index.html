@@ -263,6 +263,28 @@ function loadHomebrewSources(){
 }
 function saveHomebrewSources(list){ localStorage.setItem(SOURCES_KEY, JSON.stringify(list)); }
 
+const UPLOADS_KEY = "bfa_uploaded_homebrew_v1"; // locally-uploaded XML files: [{name, xml, addedAt}]
+function loadUploadedFiles(){
+  try{ return JSON.parse(localStorage.getItem(UPLOADS_KEY) || "[]"); }
+  catch(e){ return []; }
+}
+function saveUploadedFiles(list){
+  try{ localStorage.setItem(UPLOADS_KEY, JSON.stringify(list)); return true; }
+  catch(e){ showToast("Couldn't save that file — it may be too large for browser storage."); return false; }
+}
+function addUploadedFile(name, xmlText){
+  // validate before storing
+  parseHomebrewXml(xmlText, name); // throws if malformed
+  const list = loadUploadedFiles();
+  const existingIdx = list.findIndex(f=>f.name===name);
+  const entry = {name, xml:xmlText, addedAt:Date.now()};
+  if(existingIdx>=0) list[existingIdx] = entry; else list.push(entry);
+  return saveUploadedFiles(list);
+}
+function removeUploadedFile(name){
+  saveUploadedFiles(loadUploadedFiles().filter(f=>f.name!==name));
+}
+
 let homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:0 };
 
 function parseHomebrewXml(xmlText, sourceUrl){
@@ -337,9 +359,22 @@ function slug(s){ return (s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-')
 
 async function loadAllHomebrew(force){
   const sources = loadHomebrewSources();
-  if(!sources.length){ homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:Date.now() }; return homebrewCache; }
+  const uploads = loadUploadedFiles();
+  if(!sources.length && !uploads.length){ homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:Date.now() }; return homebrewCache; }
   if(!force && Date.now() - homebrewCache.loadedAt < CACHE_TTL_MS && homebrewCache.loadedAt) return homebrewCache;
   const merged = { races:[], classes:[], backgrounds:[], spells:[], equipment:[] };
+
+  // locally-uploaded files first — no network needed, always available
+  for(const file of uploads){
+    try{
+      const parsed = parseHomebrewXml(file.xml, file.name);
+      Object.keys(merged).forEach(k=>merged[k].push(...parsed[k]));
+    }catch(err){
+      console.warn('Uploaded file failed to parse:', file.name, err);
+      state.errors['hb:'+file.name] = err.message;
+    }
+  }
+  // then remote URL sources, if any are configured
   for(const url of sources){
     try{
       const res = await fetch(url);
@@ -599,6 +634,7 @@ function render(){
 function renderSettingsPanel(){
   const main = document.querySelector('main');
   const sources = loadHomebrewSources();
+  const uploads = loadUploadedFiles();
   main.innerHTML = `
     <div class="topbar"><h1>Content Sources</h1></div>
     <div class="panel">
@@ -607,26 +643,41 @@ function renderSettingsPanel(){
         <input type="checkbox" id="use-srd" ${getUseSrd()?'checked':''} style="width:auto;">
         <label style="margin:0;" for="use-srd">Include the free, open-license D&amp;D 5e SRD content (races, classes, spells, equipment)</label>
       </div>
-      <div class="hint">Turn this off if you only want the content from your own sources below.</div>
+      <div class="hint">Turn this off if you only want the content from your own files below.</div>
     </div>
     <div class="panel">
-      <h2>Your GitHub content sources</h2>
-      <p class="hint" style="margin-bottom:1rem;">Paste the raw GitHub URL to an XML file written in the Boss Fight Archive homebrew schema (see below). Add as many as you like — races, classes, backgrounds, spells, and equipment can be split across files or combined in one.</p>
-      <div class="chip-list" id="source-chips" style="margin-bottom:1rem;">
-        ${sources.length ? sources.map((u,i)=>`<span class="chip">${esc(u)} <button data-i="${i}">✕</button></span>`).join('') : '<span class="hint">No custom sources added yet.</span>'}
-      </div>
-      <div class="grid-2">
-        <input id="new-source" placeholder="https://raw.githubusercontent.com/your-org/your-repo/main/content.xml" style="grid-column:1/3;">
+      <h2>Upload your own content files</h2>
+      <p class="hint" style="margin-bottom:1rem;">Upload XML files written in the Boss Fight Archive homebrew schema (see below). They're parsed and stored right in this browser — no hosting, no accounts, nothing leaves your machine. <strong>Note:</strong> this storage is per-browser. If you want the same content to show up for every visitor of your published site, each visitor would need to upload the file themselves, or you'd need a hosted URL instead (see the note at the bottom).</p>
+      <input type="file" id="file-upload" accept=".xml" multiple style="margin-bottom:1rem;">
+      <div id="upload-list">
+        ${uploads.length ? uploads.map(f=>`
+          <div class="equip-row">
+            <span class="en">${esc(f.name)} <span class="hint" style="display:inline;">— added ${new Date(f.addedAt).toLocaleDateString()}</span></span>
+            <button class="btn ghost upload-del" data-name="${esc(f.name)}">✕</button>
+          </div>
+        `).join('') : '<p class="hint">No files uploaded yet.</p>'}
       </div>
       <div class="btn-row">
-        <button class="btn" id="add-source">Add source</button>
         <button class="btn secondary" id="reload-sources">Reload content now</button>
       </div>
       <div id="source-errors"></div>
     </div>
     <div class="panel">
+      <h2>(Optional) GitHub URLs instead</h2>
+      <p class="hint" style="margin-bottom:1rem;">If you'd rather host a file online so it's live for every visitor without them uploading anything, you can still paste raw GitHub URLs here — same schema as above.</p>
+      <div class="chip-list" id="source-chips" style="margin-bottom:1rem;">
+        ${sources.length ? sources.map((u,i)=>`<span class="chip">${esc(u)} <button data-i="${i}">✕</button></span>`).join('') : '<span class="hint">No URL sources added.</span>'}
+      </div>
+      <div class="grid-2">
+        <input id="new-source" placeholder="https://raw.githubusercontent.com/your-org/your-repo/main/content.xml" style="grid-column:1/3;">
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary" id="add-source">Add source</button>
+      </div>
+    </div>
+    <div class="panel">
       <h2>Homebrew XML schema</h2>
-      <p class="hint" style="margin-bottom:.8rem;">Each source file should look like this. Only original content you have rights to should go in these files.</p>
+      <p class="hint" style="margin-bottom:.8rem;">Each file should look like this. Only original content you have rights to should go in these files.</p>
       <pre style="background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius); padding:1rem; font-size:.78rem; overflow-x:auto; font-family:var(--font-mono); line-height:1.6;">${esc(`<content>
   <race name="Stormkin" source="Boss Fight Archive">
     <speed>30</speed>
@@ -667,6 +718,30 @@ function renderSettingsPanel(){
     <div class="btn-row"><button class="btn secondary" id="back-to-app">← Back</button></div>
   `;
   document.getElementById('use-srd').addEventListener('change', e=>{ setUseSrd(e.target.checked); });
+
+  document.getElementById('file-upload').addEventListener('change', async (e)=>{
+    const files = Array.from(e.target.files || []);
+    for(const file of files){
+      try{
+        const text = await file.text();
+        addUploadedFile(file.name, text);
+        showToast(`Added ${file.name}`);
+      }catch(err){
+        alert(`Couldn't read "${file.name}": ${err.message}`);
+      }
+    }
+    e.target.value = '';
+    renderSettingsPanel();
+  });
+  document.querySelectorAll('.upload-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(confirm(`Remove "${btn.dataset.name}"?`)){
+        removeUploadedFile(btn.dataset.name);
+        renderSettingsPanel();
+      }
+    });
+  });
+
   document.getElementById('add-source').addEventListener('click', ()=>{
     const input = document.getElementById('new-source');
     const url = input.value.trim();
