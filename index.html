@@ -284,6 +284,10 @@ function addUploadedFile(name, xmlText){
 function removeUploadedFile(name){
   saveUploadedFiles(loadUploadedFiles().filter(f=>f.name!==name));
 }
+function removeUploadedFiles(names){
+  const set = new Set(names);
+  saveUploadedFiles(loadUploadedFiles().filter(f=>!set.has(f.name)));
+}
 
 let homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:0 };
 
@@ -649,9 +653,19 @@ function renderSettingsPanel(){
       <h2>Upload your own content files</h2>
       <p class="hint" style="margin-bottom:1rem;">Upload XML files written in the Boss Fight Archive homebrew schema (see below). They're parsed and stored right in this browser — no hosting, no accounts, nothing leaves your machine. <strong>Note:</strong> this storage is per-browser. If you want the same content to show up for every visitor of your published site, each visitor would need to upload the file themselves, or you'd need a hosted URL instead (see the note at the bottom).</p>
       <input type="file" id="file-upload" accept=".xml" multiple style="margin-bottom:1rem;">
+      ${uploads.length ? `
+        <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:.6rem; padding-bottom:.6rem; border-bottom:1px solid var(--line);">
+          <input type="checkbox" id="upload-select-all" style="width:auto;">
+          <label for="upload-select-all" style="margin:0; font-size:.8rem;">Select all (${uploads.length})</label>
+          <span style="flex:1;"></span>
+          <span class="hint" id="upload-select-count">0 selected</span>
+          <button class="btn secondary" id="delete-selected-uploads" disabled style="font-size:.78rem; padding:.4rem .8rem;">Delete selected</button>
+        </div>
+      ` : ''}
       <div id="upload-list">
         ${uploads.length ? uploads.map(f=>`
           <div class="equip-row">
+            <input type="checkbox" class="upload-check" data-name="${esc(f.name)}" style="width:auto;">
             <span class="en">${esc(f.name)} <span class="hint" style="display:inline;">— added ${new Date(f.addedAt).toLocaleDateString()}</span></span>
             <button class="btn ghost upload-del" data-name="${esc(f.name)}">✕</button>
           </div>
@@ -741,6 +755,36 @@ function renderSettingsPanel(){
       }
     });
   });
+
+  // ---- bulk select / delete for uploaded files ----
+  const checkboxes = () => Array.from(document.querySelectorAll('.upload-check'));
+  const selectAllBox = document.getElementById('upload-select-all');
+  const deleteSelectedBtn = document.getElementById('delete-selected-uploads');
+  const countLabel = document.getElementById('upload-select-count');
+  function refreshBulkUi(){
+    const checked = checkboxes().filter(cb=>cb.checked);
+    if(countLabel) countLabel.textContent = `${checked.length} selected`;
+    if(deleteSelectedBtn) deleteSelectedBtn.disabled = checked.length === 0;
+    if(selectAllBox) selectAllBox.checked = checkboxes().length>0 && checked.length===checkboxes().length;
+  }
+  checkboxes().forEach(cb=>cb.addEventListener('change', refreshBulkUi));
+  if(selectAllBox){
+    selectAllBox.addEventListener('change', ()=>{
+      checkboxes().forEach(cb=>cb.checked = selectAllBox.checked);
+      refreshBulkUi();
+    });
+  }
+  if(deleteSelectedBtn){
+    deleteSelectedBtn.addEventListener('click', ()=>{
+      const names = checkboxes().filter(cb=>cb.checked).map(cb=>cb.dataset.name);
+      if(!names.length) return;
+      if(confirm(`Delete ${names.length} file${names.length>1?'s':''}? This can't be undone.`)){
+        removeUploadedFiles(names);
+        showToast(`Deleted ${names.length} file${names.length>1?'s':''}.`);
+        renderSettingsPanel();
+      }
+    });
+  }
 
   document.getElementById('add-source').addEventListener('click', ()=>{
     const input = document.getElementById('new-source');
