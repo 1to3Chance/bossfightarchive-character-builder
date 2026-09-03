@@ -222,40 +222,26 @@
 <script>
 /* =========================================================================
    BOSS FIGHT ARCHIVE — CHARACTER BUILDER
-   Single-file static app. No build step, no server. Deploy: GitHub Pages.
-   Content: fetched live from the 5e SRD API (open-license D&D 5e content,
-   backed by the 5e-bits/5e-database GitHub repo) — see CONTENT_BASE below.
-   Character data: stored only in the browser (localStorage) + file export.
+   Single-file static app. Integrated SRD + Aurora XML / Custom XML support.
    ========================================================================= */
 
-const CONTENT_BASE = "https://www.dnd5eapi.co/api/2014"; // free open-license SRD content
+const CONTENT_BASE = "https://www.dnd5eapi.co/api/2014"; 
 const CACHE_KEY = "bfa_content_cache_v1";
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12h
 const STORE_KEY = "bfa_characters_v1";
-const SOURCES_KEY = "bfa_homebrew_sources_v1"; // list of raw GitHub URLs to homebrew XML files
+const SOURCES_KEY = "bfa_homebrew_sources_v1"; 
+const UPLOADS_KEY = "bfa_uploaded_homebrew_v1";
 
-/* ---------------------------------------------------------------------
-   HOMEBREW CONTENT SCHEMA (original format — not Aurora's index/file format)
-   Point this at raw GitHub URLs of XML files shaped like:
-
-   <content>
-     <race name="Stormkin" source="...">
-       <speed>30</speed><size>Medium</size>
-       <ability_bonus ability="dex" value="2"/>
-       <trait name="..."><description>...</description></trait>
-       <language>Common</language>
-     </race>
-     <class name="Stormblade" hit_die="10" source="...">
-       <saving_throw ability="str"/>
-       <skill_choice count="2"><option skill="athletics"/></skill_choice>
-     </class>
-     <background name="..." source="..."><skill_proficiency skill="..."/></background>
-     <spell name="..." level="1" school="Evocation" class="wizard" source="...">
-       <description>...</description>
-     </spell>
-     <equipment name="..." category="Weapon" source="..."><cost>5 gp</cost></equipment>
-   </content>
-   --------------------------------------------------------------------- */
+const FALLBACK_BACKGROUNDS = [
+  { index: "acolyte", name: "Acolyte", skills: ["insight", "religion"], source: "Player’s Handbook" },
+  { index: "charlatan", name: "Charlatan", skills: ["deception", "sleight-of-hand"], source: "Player’s Handbook" },
+  { index: "criminal", name: "Criminal", skills: ["deception", "stealth"], source: "Player’s Handbook" },
+  { index: "custom-background", name: "Custom Background", skills: [], source: "Player’s Handbook" },
+  { index: "entertainer", name: "Entertainer", skills: ["acrobatics", "performance"], source: "Player’s Handbook" },
+  { index: "folk-hero", name: "Folk Hero", skills: ["animal-handling", "survival"], source: "Player’s Handbook" },
+  { index: "guild-artisan", name: "Guild Artisan", skills: ["insight", "persuasion"], source: "Player’s Handbook" },
+  { index: "hermit", name: "Hermit", skills: ["medicine", "religion"], source: "Player’s Handbook" }
+];
 
 function loadHomebrewSources(){
   try{ return JSON.parse(localStorage.getItem(SOURCES_KEY) || "[]"); }
@@ -263,18 +249,16 @@ function loadHomebrewSources(){
 }
 function saveHomebrewSources(list){ localStorage.setItem(SOURCES_KEY, JSON.stringify(list)); }
 
-const UPLOADS_KEY = "bfa_uploaded_homebrew_v1"; // locally-uploaded XML files: [{name, xml, addedAt}]
 function loadUploadedFiles(){
   try{ return JSON.parse(localStorage.getItem(UPLOADS_KEY) || "[]"); }
   catch(e){ return []; }
 }
 function saveUploadedFiles(list){
   try{ localStorage.setItem(UPLOADS_KEY, JSON.stringify(list)); return true; }
-  catch(e){ showToast("Couldn't save that file — it may be too large for browser storage."); return false; }
+  catch(e){ showToast("Couldn't save file — storage limit exceeded."); return false; }
 }
 function addUploadedFile(name, xmlText){
-  // validate before storing
-  parseHomebrewXml(xmlText, name); // throws if malformed
+  parseHomebrewXml(xmlText, name);
   const list = loadUploadedFiles();
   const existingIdx = list.findIndex(f=>f.name===name);
   const entry = {name, xml:xmlText, addedAt:Date.now()};
@@ -284,36 +268,69 @@ function addUploadedFile(name, xmlText){
 function removeUploadedFile(name){
   saveUploadedFiles(loadUploadedFiles().filter(f=>f.name!==name));
 }
-function removeUploadedFiles(names){
-  const set = new Set(names);
-  saveUploadedFiles(loadUploadedFiles().filter(f=>!set.has(f.name)));
-}
 
 let homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:0 };
 
+function slug(s){ return (s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
+
+/* Universal XML Parser supporting both Custom <content> schema and Aurora <elements> schema */
 function parseHomebrewXml(xmlText, sourceUrl){
   const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
   if(doc.querySelector('parsererror')) throw new Error('Malformed homebrew XML');
   const out = { races:[], classes:[], backgrounds:[], spells:[], equipment:[] };
 
+  // 1. Check for Aurora Elements format (<elements><element ...>)
+  const auroraElements = doc.querySelectorAll('elements > element');
+  if(auroraElements.length > 0){
+    auroraElements.forEach(el => {
+      const type = (el.getAttribute('type') || '').toLowerCase();
+      const name = el.getAttribute('name') || 'Unnamed';
+      const src = el.getAttribute('source') || sourceUrl;
+      const idx = 'hb-' + slug(name);
+
+      if(type === 'background'){
+        const skills = [];
+        el.querySelectorAll('grant[type="Proficiency"]').forEach(g => {
+          const id = g.getAttribute('id') || '';
+          if(id.includes('SKILL_')){
+            const sk = id.split('SKILL_')[1].toLowerCase().replace(/_/g, '-');
+            if(sk) skills.push(sk);
+          }
+        });
+        out.backgrounds.push({
+          index: idx, name: name, homebrew: true, source: src, skills: skills,
+          description: el.querySelector('description')?.textContent || ''
+        });
+      } else if(type === 'race') {
+        out.races.push({ index: idx, name: name, homebrew: true, source: src, speed: 30, size: 'Medium', ability_bonuses: [], traits: [], languages: [], subraces: [] });
+      } else if(type === 'class') {
+        out.classes.push({ index: idx, name: name, homebrew: true, source: src, hit_die: 8, saving_throws: [], proficiency_choices: [], spellcasting: false });
+      } else if(type === 'spell') {
+        out.spells.push({ index: idx, name: name, homebrew: true, source: src, level: 0, school: '', klass: '', description: el.querySelector('description')?.textContent || '' });
+      } else if(type === 'equipment' || type === 'item') {
+        out.equipment.push({ index: idx, name: name, homebrew: true, source: src, category: '', cost: '' });
+      }
+    });
+    return out;
+  }
+
+  // 2. Custom <content> format
   doc.querySelectorAll('content > race').forEach(el=>{
     out.races.push({
-      index: 'hb-' + slug(el.getAttribute('name')),
-      name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
       speed: parseInt(el.querySelector('speed')?.textContent)||30,
       size: el.querySelector('size')?.textContent || 'Medium',
       ability_bonuses: Array.from(el.querySelectorAll('ability_bonus')).map(b=>({ability_score:{index:b.getAttribute('ability')}, bonus:parseInt(b.getAttribute('value'))})),
       traits: Array.from(el.querySelectorAll('trait')).map(t=>({name:t.getAttribute('name'), description:t.querySelector('description')?.textContent||''})),
       languages: Array.from(el.querySelectorAll('language')).map(l=>({name:l.textContent})),
-      subraces: [],
+      subraces: []
     });
   });
 
   doc.querySelectorAll('content > class').forEach(el=>{
     out.classes.push({
-      index: 'hb-' + slug(el.getAttribute('name')),
-      name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
       hit_die: parseInt(el.getAttribute('hit_die'))||8,
       saving_throws: Array.from(el.querySelectorAll('saving_throw')).map(s=>({index:s.getAttribute('ability'), name:s.getAttribute('ability').toUpperCase()})),
@@ -322,53 +339,49 @@ function parseHomebrewXml(xmlText, sourceUrl){
         if(!sc) return [];
         return [{ choose: parseInt(sc.getAttribute('count'))||2, from:{ options: Array.from(sc.querySelectorAll('option')).map(o=>({item:{index:'skill-'+o.getAttribute('skill')}})) } }];
       })(),
-      spellcasting: !!el.querySelector('spellcasting'),
+      spellcasting: !!el.querySelector('spellcasting')
     });
   });
 
   doc.querySelectorAll('content > background').forEach(el=>{
     out.backgrounds.push({
-      index: 'hb-' + slug(el.getAttribute('name')),
-      name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
-      skills: Array.from(el.querySelectorAll('skill_proficiency')).map(s=>s.getAttribute('skill')),
+      skills: Array.from(el.querySelectorAll('skill_proficiency')).map(s=>s.getAttribute('skill'))
     });
   });
 
   doc.querySelectorAll('content > spell').forEach(el=>{
     out.spells.push({
-      index: 'hb-' + slug(el.getAttribute('name')),
-      name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
       level: parseInt(el.getAttribute('level'))||0,
-      school: el.getAttribute('school')||'',
-      klass: el.getAttribute('class')||'',
-      description: el.querySelector('description')?.textContent||'',
+      school: el.getAttribute('school')||'', klass: el.getAttribute('class')||'',
+      description: el.querySelector('description')?.textContent||''
     });
   });
 
   doc.querySelectorAll('content > equipment').forEach(el=>{
     out.equipment.push({
-      index: 'hb-' + slug(el.getAttribute('name')),
-      name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
-      category: el.getAttribute('category')||'',
-      cost: el.querySelector('cost')?.textContent||'',
+      category: el.getAttribute('category')||'', cost: el.querySelector('cost')?.textContent||''
     });
   });
 
   return out;
 }
-function slug(s){ return (s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
 
 async function loadAllHomebrew(force){
   const sources = loadHomebrewSources();
   const uploads = loadUploadedFiles();
-  if(!sources.length && !uploads.length){ homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:Date.now() }; return homebrewCache; }
+  if(!sources.length && !uploads.length){ 
+    homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:Date.now() }; 
+    return homebrewCache; 
+  }
   if(!force && Date.now() - homebrewCache.loadedAt < CACHE_TTL_MS && homebrewCache.loadedAt) return homebrewCache;
   const merged = { races:[], classes:[], backgrounds:[], spells:[], equipment:[] };
 
-  // locally-uploaded files first — no network needed, always available
   for(const file of uploads){
     try{
       const parsed = parseHomebrewXml(file.xml, file.name);
@@ -378,7 +391,6 @@ async function loadAllHomebrew(force){
       state.errors['hb:'+file.name] = err.message;
     }
   }
-  // then remote URL sources, if any are configured
   for(const url of sources){
     try{
       const res = await fetch(url);
@@ -416,7 +428,6 @@ const STEPS = [
   {id:"sheet", label:"Character Sheet"},
 ];
 
-/* --------------------------- tiny state store --------------------------- */
 const state = {
   characters: [],
   activeId: null,
@@ -444,32 +455,23 @@ function activeChar(){
 function touch(c){ c.updatedAt = Date.now(); persistCharacters(); }
 
 function newCharacter(name){
-  const c = {
+  return {
     id: uid(),
     name: name || "Unnamed Adventurer",
     createdAt: Date.now(), updatedAt: Date.now(),
     playerName:"", alignment:"", level:1, xp:0,
-    raceIndex:null, subraceIndex:null,
-    classIndex:null,
+    raceIndex:null, subraceIndex:null, classIndex:null,
     backgroundIndex:null, backgroundCustom:"",
     abilityMethod:"standard",
     abilityScores:{str:10,dex:10,con:10,int:10,wis:10,cha:10},
-    skillProfs:[],
-    languages:[],
-    equipment:[], // {index,name,qty}
-    equipmentNotes:"",
-    gold:0,
-    hp:{max:null,current:null,temp:0},
-    hitDiceUsed:0,
+    skillProfs:[], languages:[], equipment:[], equipmentNotes:"", gold:0,
+    hp:{max:null,current:null,temp:0}, hitDiceUsed:0,
     spells:{cantrips:[],known:[]},
     personality:{traits:"",ideals:"",bonds:"",flaws:""},
-    notes:"",
-    inspiration:false,
+    notes:"", inspiration:false
   };
-  return c;
 }
 
-/* --------------------------- content fetching --------------------------- */
 function loadCache(){
   try{ state.cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); }
   catch(e){ state.cache = {}; }
@@ -479,9 +481,7 @@ function saveCache(){ localStorage.setItem(CACHE_KEY, JSON.stringify(state.cache
 async function api(path){
   const key = path;
   const entry = state.cache[key];
-  if(entry && (Date.now() - entry.t < CACHE_TTL_MS)){
-    return entry.d;
-  }
+  if(entry && (Date.now() - entry.t < CACHE_TTL_MS)) return entry.d;
   const res = await fetch(CONTENT_BASE + path);
   if(!res.ok) throw new Error("Content fetch failed: " + path + " (" + res.status + ")");
   const data = await res.json();
@@ -489,7 +489,7 @@ async function api(path){
   saveCache();
   return data;
 }
-// convenience list caches (avoid refetching lists constantly)
+
 let _listCache = {};
 async function apiList(kind){
   if(_listCache[kind]) return _listCache[kind];
@@ -498,20 +498,9 @@ async function apiList(kind){
   return _listCache[kind];
 }
 
-function forceRefreshContent(){
-  state.cache = {};
-  _listCache = {};
-  localStorage.removeItem(CACHE_KEY);
-  homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:0 };
-  showToast("Content cache cleared — latest data will be fetched from the source.");
-  render();
-}
-
-/* -------- combined content getters: merges SRD (if enabled) + homebrew -------- */
 const USE_SRD_KEY = "bfa_use_srd_v1";
 function getUseSrd(){ const v = localStorage.getItem(USE_SRD_KEY); return v===null ? true : v==='1'; }
 function setUseSrd(v){ localStorage.setItem(USE_SRD_KEY, v ? '1':'0'); }
-
 function isHomebrewIndex(idx){ return typeof idx === 'string' && idx.startsWith('hb-'); }
 
 async function getRaces(){
@@ -543,15 +532,7 @@ async function getClassDetail(index, list){
   if(isHomebrewIndex(index)) return (list||(await getClasses())).find(cl=>cl.index===index) || null;
   return api('/classes/'+index);
 }
-async function getClassSpells(index, classDetail){
-  if(isHomebrewIndex(index)){
-    const hb = await loadAllHomebrew();
-    return { results: hb.spells.filter(s=>slug(s.klass)===slug(classDetail?.name||'')) };
-  }
-  return api(`/classes/${index}/spells`);
-}
 
-/* --------------------------------- utils --------------------------------- */
 function mod(score){ return Math.floor((score-10)/2); }
 function fmtMod(n){ return (n>=0?"+":"") + n; }
 function profBonus(level){ return Math.ceil(level/4) + 1; }
@@ -565,13 +546,12 @@ function showToast(msg){
   showToast._h = setTimeout(()=>t.classList.remove('show'), 2600);
 }
 
-/* effective ability score = base + racial bonus + subrace bonus */
 function effectiveAbilities(c, raceData, subraceData){
   const out = {...c.abilityScores};
   const applyBonuses = (bonuses) => {
     (bonuses||[]).forEach(b=>{
-      const key = b.ability_score.index;
-      out[key] = (out[key]||10) + b.bonus;
+      const key = b.ability_score?.index;
+      if(key) out[key] = (out[key]||10) + b.bonus;
     });
   };
   if(raceData) applyBonuses(raceData.ability_bonuses);
@@ -579,8 +559,51 @@ function effectiveAbilities(c, raceData, subraceData){
   return out;
 }
 
-/* ------------------------------- rendering ------------------------------- */
 const appEl = document.getElementById('app');
+
+function renderCharList(){
+  return state.characters.map(ch => `
+    <div class="char-item ${ch.id === state.activeId ? 'active' : ''}" data-id="${ch.id}">
+      <div>
+        <div class="nm">${esc(ch.name)}</div>
+        <div class="meta">Lvl ${ch.level}</div>
+      </div>
+      <button class="del" title="Delete">✕</button>
+    </div>
+  `).join('');
+}
+
+function renderStepNav(){
+  return `
+    <div class="steps">
+      ${STEPS.map((s, i) => `
+        <button class="step-btn ${state.step === s.id ? 'active' : ''}" data-step="${s.id}">
+          <span class="num">${i+1}</span>
+          <span>${s.label}</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderEmptyState(){
+  return `
+    <div class="empty-state">
+      <h2>No Character Selected</h2>
+      <p>Select a character from the left rail or create a new one to begin.</p>
+    </div>
+  `;
+}
+
+function onNewCharacter(){
+  const c = newCharacter("New Adventurer");
+  state.characters.unshift(c);
+  state.activeId = c.id;
+  state.step = "identity";
+  state.showSettings = false;
+  persistCharacters();
+  render();
+}
 
 function render(){
   const c = activeChar();
@@ -594,14 +617,16 @@ function render(){
       <div class="char-list">${renderCharList()}</div>
       <button class="new-char-btn" id="btn-new-char">+ New character</button>
       ${c && !state.showSettings ? renderStepNav() : ''}
-      <div style="padding:.6rem; border-top:1px solid var(--line);">
+      <div style="padding:.6rem; border-top:1px solid var(--line); margin-top:auto;">
         <button class="btn ghost" id="btn-content-sources" style="width:100%; text-align:left; font-size:.8rem;">⚙ Content Sources</button>
       </div>
     </div>
     <main>${state.showSettings ? '' : (c ? '' : renderEmptyState())}</main>
   `;
+
   document.getElementById('btn-new-char').addEventListener('click', onNewCharacter);
   document.getElementById('btn-content-sources').addEventListener('click', ()=>{ state.showSettings = true; render(); });
+
   appEl.querySelectorAll('.char-item').forEach(el=>{
     el.addEventListener('click', (e)=>{
       if(e.target.closest('.del')) return;
@@ -611,12 +636,13 @@ function render(){
       render();
     });
   });
+
   appEl.querySelectorAll('.char-item .del').forEach(el=>{
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
       const id = el.closest('.char-item').dataset.id;
       const ch = state.characters.find(x=>x.id===id);
-      if(confirm(`Delete "${ch.name}"? This can't be undone.`)){
+      if(confirm(`Delete "${ch.name}"?`)){
         state.characters = state.characters.filter(x=>x.id!==id);
         persistCharacters();
         if(state.activeId===id) state.activeId = state.characters[0]?.id || null;
@@ -624,9 +650,10 @@ function render(){
       }
     });
   });
+
   if(state.showSettings){
     renderSettingsPanel();
-  }else if(c){
+  } else if(c) {
     appEl.querySelectorAll('.step-btn').forEach(el=>{
       el.addEventListener('click', ()=>{ state.step = el.dataset.step; render(); });
     });
@@ -634,7 +661,6 @@ function render(){
   }
 }
 
-/* ------------------------------ Content Sources panel ------------------------------ */
 function renderSettingsPanel(){
   const main = document.querySelector('main');
   const sources = loadHomebrewSources();
@@ -642,989 +668,338 @@ function renderSettingsPanel(){
   main.innerHTML = `
     <div class="topbar"><h1>Content Sources</h1></div>
     <div class="panel">
-      <h2>Where character content comes from</h2>
+      <h2>Options</h2>
       <div class="field" style="display:flex; align-items:center; gap:.6rem;">
         <input type="checkbox" id="use-srd" ${getUseSrd()?'checked':''} style="width:auto;">
-        <label style="margin:0;" for="use-srd">Include the free, open-license D&amp;D 5e SRD content (races, classes, spells, equipment)</label>
+        <label style="margin:0;" for="use-srd">Include D&amp;D 5e SRD content (races, classes, spells, equipment)</label>
       </div>
-      <div class="hint">Turn this off if you only want the content from your own files below.</div>
     </div>
     <div class="panel">
-      <h2>Upload your own content files</h2>
-      <p class="hint" style="margin-bottom:1rem;">Upload XML files written in the Boss Fight Archive homebrew schema (see below). They're parsed and stored right in this browser — no hosting, no accounts, nothing leaves your machine. <strong>Note:</strong> this storage is per-browser. If you want the same content to show up for every visitor of your published site, each visitor would need to upload the file themselves, or you'd need a hosted URL instead (see the note at the bottom).</p>
+      <h2>Upload XML Content Files</h2>
+      <p class="hint" style="margin-bottom:1rem;">Upload XML files (Aurora elements or Boss Fight Archive XML schema). Parsed locally in your browser.</p>
       <input type="file" id="file-upload" accept=".xml" multiple style="margin-bottom:1rem;">
-      ${uploads.length ? `
-        <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:.6rem; padding-bottom:.6rem; border-bottom:1px solid var(--line);">
-          <input type="checkbox" id="upload-select-all" style="width:auto;">
-          <label for="upload-select-all" style="margin:0; font-size:.8rem;">Select all (${uploads.length})</label>
-          <span style="flex:1;"></span>
-          <span class="hint" id="upload-select-count">0 selected</span>
-          <button class="btn secondary" id="delete-selected-uploads" disabled style="font-size:.78rem; padding:.4rem .8rem;">Delete selected</button>
-        </div>
-      ` : ''}
       <div id="upload-list">
         ${uploads.length ? uploads.map(f=>`
           <div class="equip-row">
-            <input type="checkbox" class="upload-check" data-name="${esc(f.name)}" style="width:auto;">
-            <span class="en">${esc(f.name)} <span class="hint" style="display:inline;">— added ${new Date(f.addedAt).toLocaleDateString()}</span></span>
+            <span class="en">${esc(f.name)} <span class="hint">— added ${new Date(f.addedAt).toLocaleDateString()}</span></span>
             <button class="btn ghost upload-del" data-name="${esc(f.name)}">✕</button>
           </div>
         `).join('') : '<p class="hint">No files uploaded yet.</p>'}
       </div>
-      <div class="btn-row">
-        <button class="btn secondary" id="reload-sources">Reload content now</button>
-      </div>
-      <div id="source-errors"></div>
     </div>
     <div class="panel">
-      <h2>(Optional) GitHub URLs instead</h2>
-      <p class="hint" style="margin-bottom:1rem;">If you'd rather host a file online so it's live for every visitor without them uploading anything, you can still paste raw GitHub URLs here — same schema as above.</p>
-      <div class="chip-list" id="source-chips" style="margin-bottom:1rem;">
-        ${sources.length ? sources.map((u,i)=>`<span class="chip">${esc(u)} <button data-i="${i}">✕</button></span>`).join('') : '<span class="hint">No URL sources added.</span>'}
-      </div>
-      <div class="grid-2">
-        <input id="new-source" placeholder="https://raw.githubusercontent.com/your-org/your-repo/main/content.xml" style="grid-column:1/3;">
+      <h2>GitHub XML URLs</h2>
+      <div class="field">
+        <label>Raw Github URLs (one per line)</label>
+        <textarea id="sources-input" rows="4" style="width:100%;">${sources.join('\n')}</textarea>
       </div>
       <div class="btn-row">
-        <button class="btn secondary" id="add-source">Add source</button>
+        <button class="btn" id="save-sources-btn">Save Sources</button>
+        <button class="btn secondary" id="close-settings-btn">Back to Builder</button>
       </div>
     </div>
-    <div class="panel">
-      <h2>Homebrew XML schema</h2>
-      <p class="hint" style="margin-bottom:.8rem;">Each file should look like this. Only original content you have rights to should go in these files.</p>
-      <pre style="background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius); padding:1rem; font-size:.78rem; overflow-x:auto; font-family:var(--font-mono); line-height:1.6;">${esc(`<content>
-  <race name="Stormkin" source="Boss Fight Archive">
-    <speed>30</speed>
-    <size>Medium</size>
-    <ability_bonus ability="dex" value="2"/>
-    <ability_bonus ability="cha" value="1"/>
-    <trait name="Thunderstep">
-      <description>Once per short rest, teleport 15 ft as a bonus action.</description>
-    </trait>
-    <language>Common</language>
-    <language>Primordial</language>
-  </race>
-
-  <class name="Stormblade" hit_die="10" source="Boss Fight Archive">
-    <saving_throw ability="str"/>
-    <saving_throw ability="dex"/>
-    <skill_choice count="2">
-      <option skill="athletics"/>
-      <option skill="acrobatics"/>
-    </skill_choice>
-    <!-- add <spellcasting/> as an empty tag if this class casts spells -->
-  </class>
-
-  <background name="Storm Chaser" source="Boss Fight Archive">
-    <skill_proficiency skill="survival"/>
-    <skill_proficiency skill="nature"/>
-  </background>
-
-  <spell name="Thunderclap" level="1" school="Evocation" class="Stormblade" source="Boss Fight Archive">
-    <description>A burst of thunder deals 2d6 damage in a 10 ft radius.</description>
-  </spell>
-
-  <equipment name="Storm Lance" category="Weapon" source="Boss Fight Archive">
-    <cost>25 gp</cost>
-  </equipment>
-</content>`)}</pre>
-    </div>
-    <div class="btn-row"><button class="btn secondary" id="back-to-app">← Back</button></div>
   `;
-  document.getElementById('use-srd').addEventListener('change', e=>{ setUseSrd(e.target.checked); });
 
+  document.getElementById('use-srd').addEventListener('change', (e)=>{ setUseSrd(e.target.checked); });
   document.getElementById('file-upload').addEventListener('change', async (e)=>{
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files);
     for(const file of files){
-      try{
-        const text = await file.text();
-        addUploadedFile(file.name, text);
-        showToast(`Added ${file.name}`);
-      }catch(err){
-        alert(`Couldn't read "${file.name}": ${err.message}`);
-      }
+      const text = await file.text();
+      addUploadedFile(file.name, text);
     }
-    e.target.value = '';
+    await loadAllHomebrew(true);
     renderSettingsPanel();
   });
-  document.querySelectorAll('.upload-del').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      if(confirm(`Remove "${btn.dataset.name}"?`)){
-        removeUploadedFile(btn.dataset.name);
-        renderSettingsPanel();
-      }
-    });
-  });
-
-  // ---- bulk select / delete for uploaded files ----
-  const checkboxes = () => Array.from(document.querySelectorAll('.upload-check'));
-  const selectAllBox = document.getElementById('upload-select-all');
-  const deleteSelectedBtn = document.getElementById('delete-selected-uploads');
-  const countLabel = document.getElementById('upload-select-count');
-  function refreshBulkUi(){
-    const checked = checkboxes().filter(cb=>cb.checked);
-    if(countLabel) countLabel.textContent = `${checked.length} selected`;
-    if(deleteSelectedBtn) deleteSelectedBtn.disabled = checked.length === 0;
-    if(selectAllBox) selectAllBox.checked = checkboxes().length>0 && checked.length===checkboxes().length;
-  }
-  checkboxes().forEach(cb=>cb.addEventListener('change', refreshBulkUi));
-  if(selectAllBox){
-    selectAllBox.addEventListener('change', ()=>{
-      checkboxes().forEach(cb=>cb.checked = selectAllBox.checked);
-      refreshBulkUi();
-    });
-  }
-  if(deleteSelectedBtn){
-    deleteSelectedBtn.addEventListener('click', ()=>{
-      const names = checkboxes().filter(cb=>cb.checked).map(cb=>cb.dataset.name);
-      if(!names.length) return;
-      if(confirm(`Delete ${names.length} file${names.length>1?'s':''}? This can't be undone.`)){
-        removeUploadedFiles(names);
-        showToast(`Deleted ${names.length} file${names.length>1?'s':''}.`);
-        renderSettingsPanel();
-      }
-    });
-  }
-
-  document.getElementById('add-source').addEventListener('click', ()=>{
-    const input = document.getElementById('new-source');
-    const url = input.value.trim();
-    if(!url) return;
-    if(!/^https:\/\//.test(url)){ showToast('Please paste a full https:// URL.'); return; }
-    const list = loadHomebrewSources();
-    if(list.includes(url)){ showToast('That source is already added.'); return; }
-    list.push(url);
-    saveHomebrewSources(list);
-    renderSettingsPanel();
-  });
-  document.querySelectorAll('#source-chips button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const list = loadHomebrewSources();
-      list.splice(parseInt(btn.dataset.i), 1);
-      saveHomebrewSources(list);
+  main.querySelectorAll('.upload-del').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      removeUploadedFile(btn.dataset.name);
+      await loadAllHomebrew(true);
       renderSettingsPanel();
     });
   });
-  document.getElementById('reload-sources').addEventListener('click', async ()=>{
-    document.getElementById('source-errors').innerHTML = `<div class="loader"><div class="spinner"></div> Fetching your sources…</div>`;
-    state.errors = {};
+  document.getElementById('save-sources-btn').addEventListener('click', async ()=>{
+    const raw = document.getElementById('sources-input').value;
+    const list = raw.split('\n').map(s=>s.trim()).filter(Boolean);
+    saveHomebrewSources(list);
     await loadAllHomebrew(true);
-    const errs = Object.entries(state.errors).filter(([k])=>k.startsWith('hb:'));
-    document.getElementById('source-errors').innerHTML = errs.length
-      ? errs.map(([k,v])=>`<div class="error-box">${esc(k.slice(3))}: ${esc(v)}</div>`).join('')
-      : `<div class="hint">Loaded ${homebrewCache.races.length} races, ${homebrewCache.classes.length} classes, ${homebrewCache.backgrounds.length} backgrounds, ${homebrewCache.spells.length} spells, ${homebrewCache.equipment.length} equipment items from your sources.</div>`;
-    showToast('Custom content reloaded.');
+    showToast('Sources saved and loaded');
   });
-  document.getElementById('back-to-app').addEventListener('click', ()=>{ state.showSettings = false; render(); });
-}
-
-function renderCharList(){
-  if(!state.characters.length) return `<div style="padding:.4rem .6rem; font-size:.78rem; color:var(--ink-faint);">No characters yet.</div>`;
-  return state.characters
-    .slice().sort((a,b)=>b.updatedAt-a.updatedAt)
-    .map(ch => `
-      <div class="char-item ${ch.id===state.activeId?'active':''}" data-id="${ch.id}">
-        <div style="min-width:0;">
-          <div class="nm">${esc(ch.name)}</div>
-          <div class="meta">Lv ${ch.level||1}${ch.classIndex? ' · '+esc(ch.classIndex):''}</div>
-        </div>
-        <button class="del" title="Delete">✕</button>
-      </div>
-    `).join('');
-}
-
-function renderStepNav(){
-  return `<div class="steps">${STEPS.map((s,i)=>`
-    <button class="step-btn ${state.step===s.id?'active':''}" data-step="${s.id}">
-      <span class="num">${i+1}</span> ${s.label}
-    </button>
-  `).join('')}</div>`;
-}
-
-function renderEmptyState(){
-  return `<div class="empty-state">
-    <h2>No character selected</h2>
-    <p>Create a new character to start building, or pick one from the left.</p>
-  </div>`;
-}
-
-function onNewCharacter(){
-  const name = prompt("Character name:", "New Adventurer");
-  if(name===null) return;
-  const c = newCharacter(name.trim() || "Unnamed Adventurer");
-  state.characters.push(c);
-  state.activeId = c.id;
-  state.step = "identity";
-  persistCharacters();
-  render();
+  document.getElementById('close-settings-btn').addEventListener('click', ()=>{ state.showSettings = false; render(); });
 }
 
 function renderMain(c){
   const main = document.querySelector('main');
+  if(state.step === 'identity') renderIdentityStep(main, c);
+  else if(state.step === 'race') renderRaceStep(main, c);
+  else if(state.step === 'class') renderClassStep(main, c);
+  else if(state.step === 'abilities') renderAbilitiesStep(main, c);
+  else if(state.step === 'background') renderBackgroundStep(main, c);
+  else if(state.step === 'equipment') renderEquipmentStep(main, c);
+  else if(state.step === 'spells') renderSpellsStep(main, c);
+  else if(state.step === 'sheet') renderSheetStep(main, c);
+}
+
+function renderIdentityStep(main, c){
   main.innerHTML = `
-    <div class="topbar">
-      <h1 id="char-title" contenteditable="true" spellcheck="false">${esc(c.name)}</h1>
-      <div class="status" id="save-status">saved to this browser</div>
-    </div>
-    <div id="step-body"></div>
-  `;
-  document.getElementById('char-title').addEventListener('blur', (e)=>{
-    c.name = e.target.textContent.trim() || "Unnamed Adventurer";
-    touch(c);
-    renderCharListOnly();
-  });
-  const body = document.getElementById('step-body');
-  const renderers = {
-    identity: renderIdentityStep,
-    race: renderRaceStep,
-    class: renderClassStep,
-    abilities: renderAbilitiesStep,
-    background: renderBackgroundStep,
-    equipment: renderEquipmentStep,
-    spells: renderSpellsStep,
-    sheet: renderSheetStep,
-  };
-  (renderers[state.step] || renderIdentityStep)(c, body);
-}
-
-function renderCharListOnly(){
-  document.querySelector('.char-list').innerHTML = renderCharList();
-  appEl.querySelectorAll('.char-item').forEach(el=>{
-    el.addEventListener('click', (e)=>{
-      if(e.target.closest('.del')) return;
-      state.activeId = el.dataset.id; state.step="identity"; render();
-    });
-  });
-  appEl.querySelectorAll('.char-item .del').forEach(el=>{
-    el.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      const id = el.closest('.char-item').dataset.id;
-      const ch = state.characters.find(x=>x.id===id);
-      if(confirm(`Delete "${ch.name}"? This can't be undone.`)){
-        state.characters = state.characters.filter(x=>x.id!==id);
-        persistCharacters();
-        if(state.activeId===id) state.activeId = state.characters[0]?.id || null;
-        render();
-      }
-    });
-  });
-}
-
-function stepFooter(c, {back, next} = {}){
-  const idx = STEPS.findIndex(s=>s.id===state.step);
-  return `<div class="btn-row split">
-    <div>${idx>0 ? `<button class="btn secondary" id="btn-back">← ${STEPS[idx-1].label}</button>`:'<span></span>'}</div>
-    <div>${idx<STEPS.length-1 ? `<button class="btn" id="btn-next">${STEPS[idx+1].label} →</button>`:''}</div>
-  </div>`;
-}
-function wireFooter(c){
-  const back = document.getElementById('btn-back');
-  const next = document.getElementById('btn-next');
-  const idx = STEPS.findIndex(s=>s.id===state.step);
-  if(back) back.addEventListener('click', ()=>{ state.step = STEPS[idx-1].id; render(); });
-  if(next) next.addEventListener('click', ()=>{ state.step = STEPS[idx+1].id; render(); });
-}
-
-/* ------------------------------ Step: Identity ------------------------------ */
-function renderIdentityStep(c, body){
-  body.innerHTML = `
-    <div class="panel">
-      <h2>Identity</h2>
-      <div class="grid-2">
-        <div class="field"><label>Character name</label><input id="f-name" value="${esc(c.name)}"></div>
-        <div class="field"><label>Player name</label><input id="f-player" value="${esc(c.playerName)}"></div>
-        <div class="field"><label>Alignment</label>
-          <select id="f-align">
-            <option value="">—</option>
-            ${["Lawful Good","Neutral Good","Chaotic Good","Lawful Neutral","True Neutral","Chaotic Neutral","Lawful Evil","Neutral Evil","Chaotic Evil"]
-              .map(a=>`<option value="${a}" ${c.alignment===a?'selected':''}>${a}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field"><label>Level</label><input id="f-level" type="number" min="1" max="20" value="${c.level}"></div>
+    <div class="topbar"><h1>Character Identity</h1></div>
+    <div class="panel grid-2">
+      <div class="field">
+        <label>Character Name</label>
+        <input type="text" id="id-name" value="${esc(c.name)}">
+      </div>
+      <div class="field">
+        <label>Player Name</label>
+        <input type="text" id="id-player" value="${esc(c.playerName)}">
+      </div>
+      <div class="field">
+        <label>Alignment</label>
+        <input type="text" id="id-align" value="${esc(c.alignment)}" placeholder="e.g. Neutral Good">
+      </div>
+      <div class="field">
+        <label>Level</label>
+        <input type="number" id="id-level" value="${c.level}" min="1" max="20">
       </div>
     </div>
     <div class="panel">
       <h2>Personality</h2>
       <div class="grid-2">
-        <div class="field"><label>Personality traits</label><textarea id="f-traits" rows="3">${esc(c.personality.traits)}</textarea></div>
-        <div class="field"><label>Ideals</label><textarea id="f-ideals" rows="3">${esc(c.personality.ideals)}</textarea></div>
-        <div class="field"><label>Bonds</label><textarea id="f-bonds" rows="3">${esc(c.personality.bonds)}</textarea></div>
-        <div class="field"><label>Flaws</label><textarea id="f-flaws" rows="3">${esc(c.personality.flaws)}</textarea></div>
-      </div>
-      <div class="field"><label>Notes / backstory</label><textarea id="f-notes" rows="5">${esc(c.notes)}</textarea></div>
-    </div>
-    ${stepFooter(c)}
-  `;
-  const bind = (id, fn) => document.getElementById(id).addEventListener('input', e=>{ fn(e.target.value); touch(c); });
-  bind('f-name', v=>{ c.name = v || "Unnamed Adventurer"; renderCharListOnly(); document.getElementById('char-title').textContent = c.name; });
-  bind('f-player', v=>c.playerName=v);
-  bind('f-align', v=>c.alignment=v);
-  bind('f-level', v=>{ c.level = Math.max(1, Math.min(20, parseInt(v)||1)); renderCharListOnly(); });
-  bind('f-traits', v=>c.personality.traits=v);
-  bind('f-ideals', v=>c.personality.ideals=v);
-  bind('f-bonds', v=>c.personality.bonds=v);
-  bind('f-flaws', v=>c.personality.flaws=v);
-  bind('f-notes', v=>c.notes=v);
-  wireFooter(c);
-}
-
-/* ------------------------------ Step: Race ------------------------------ */
-async function renderRaceStep(c, body){
-  body.innerHTML = `<div class="panel"><h2>Race</h2><div class="loader"><div class="spinner"></div> Loading races from the content source…</div></div>`;
-  try{
-    const races = await getRaces();
-    const selected = races.find(r=>r.index===c.raceIndex);
-    let raceDetail = selected ? await getRaceDetail(selected.index, races) : null;
-
-    body.innerHTML = `
-      <div class="panel">
-        <h2>Race</h2>
-        <input class="search" id="race-search" placeholder="Search races…">
-        <div class="card-grid" id="race-grid">
-          ${races.map(r=>`
-            <div class="card ${c.raceIndex===r.index?'selected':''}" data-index="${r.index}">
-              <h3>${esc(r.name)}</h3>
-              <p>Tap to view traits &amp; select</p>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-      ${raceDetail ? renderRaceDetail(raceDetail, c) : ''}
-      ${stepFooter(c)}
-    `;
-    document.getElementById('race-search').addEventListener('input', e=>{
-      const q = e.target.value.toLowerCase();
-      document.querySelectorAll('#race-grid .card').forEach(el=>{
-        el.style.display = el.querySelector('h3').textContent.toLowerCase().includes(q) ? '' : 'none';
-      });
-    });
-    document.querySelectorAll('#race-grid .card').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        c.raceIndex = el.dataset.index;
-        c.subraceIndex = null;
-        touch(c);
-        renderRaceStep(c, body);
-      });
-    });
-    if(raceDetail){
-      const subSel = document.getElementById('subrace-select');
-      if(subSel) subSel.addEventListener('change', e=>{ c.subraceIndex = e.target.value || null; touch(c); });
-    }
-    wireFooter(c);
-  }catch(err){
-    body.innerHTML = `<div class="error-box">Couldn't load race data: ${esc(err.message)}. Check your connection, or the content source may be temporarily unavailable.</div>${stepFooter(c)}`;
-    wireFooter(c);
-  }
-}
-
-function renderRaceDetail(raceDetail, c){
-  const bonuses = (raceDetail.ability_bonuses||[]).map(b=>`${b.ability_score.index.toUpperCase()} +${b.bonus}`).join(', ') || '—';
-  const traits = (raceDetail.traits||[]).map(t=>t.name).join(', ') || '—';
-  const langs = (raceDetail.languages||[]).map(l=>l.name).join(', ') || '—';
-  const subOpts = raceDetail.subraces||[];
-  return `
-    <div class="panel">
-      <h2>${esc(raceDetail.name)}</h2>
-      <div class="grid-2">
-        <div><div class="statline"><span>Ability bonuses</span><span>${bonuses}</span></div>
-        <div class="statline"><span>Speed</span><span>${raceDetail.speed||30} ft.</span></div>
-        <div class="statline"><span>Size</span><span>${raceDetail.size||'—'}</span></div>
-        <div class="statline"><span>Languages</span><span style="text-align:right;">${langs}</span></div></div>
-        <div>
-          <div class="hint" style="margin-bottom:.3rem;">Traits</div>
-          <p style="font-size:.85rem; color:var(--ink-dim);">${traits}</p>
-          ${subOpts.length ? `
-            <div class="field" style="margin-top:.8rem;">
-              <label>Subrace</label>
-              <select id="subrace-select">
-                <option value="">— none —</option>
-                ${subOpts.map(s=>`<option value="${s.index}" ${c.subraceIndex===s.index?'selected':''}>${s.name}</option>`).join('')}
-              </select>
-            </div>` : ''}
-        </div>
+        <div class="field"><label>Traits</label><textarea id="id-traits" rows="3">${esc(c.personality.traits)}</textarea></div>
+        <div class="field"><label>Ideals</label><textarea id="id-ideals" rows="3">${esc(c.personality.ideals)}</textarea></div>
+        <div class="field"><label>Bonds</label><textarea id="id-bonds" rows="3">${esc(c.personality.bonds)}</textarea></div>
+        <div class="field"><label>Flaws</label><textarea id="id-flaws" rows="3">${esc(c.personality.flaws)}</textarea></div>
       </div>
     </div>
   `;
-}
 
-/* ------------------------------ Step: Class ------------------------------ */
-async function renderClassStep(c, body){
-  body.innerHTML = `<div class="panel"><h2>Class</h2><div class="loader"><div class="spinner"></div> Loading classes…</div></div>`;
-  try{
-    const classes = await getClasses();
-    const selected = classes.find(cl=>cl.index===c.classIndex);
-    const detail = selected ? await getClassDetail(selected.index, classes) : null;
-
-    body.innerHTML = `
-      <div class="panel">
-        <h2>Class</h2>
-        <div class="card-grid">
-          ${classes.map(cl=>`
-            <div class="card ${c.classIndex===cl.index?'selected':''}" data-index="${cl.index}">
-              <h3>${esc(cl.name)}</h3>
-              <p>Tap to view &amp; select</p>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-      ${detail ? renderClassDetail(detail, c) : ''}
-      ${stepFooter(c)}
-    `;
-    document.querySelectorAll('.card-grid .card').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        c.classIndex = el.dataset.index;
-        c.skillProfs = []; // reset skill picks - class grants differ
-        touch(c);
-        renderClassStep(c, body);
-      });
-    });
-    wireFooter(c);
-  }catch(err){
-    body.innerHTML = `<div class="error-box">Couldn't load class data: ${esc(err.message)}.</div>${stepFooter(c)}`;
-    wireFooter(c);
-  }
-}
-
-function renderClassDetail(detail, c){
-  const saves = (detail.saving_throws||[]).map(s=>s.name).join(', ');
-  const casterNote = detail.spellcasting ? `<span class="pill">Spellcaster</span>` : '';
-  return `
-    <div class="panel">
-      <h2>${esc(detail.name)} ${casterNote}</h2>
-      <div class="grid-2">
-        <div class="statline"><span>Hit die</span><span>d${detail.hit_die}</span></div>
-        <div class="statline"><span>Saving throw proficiencies</span><span>${saves}</span></div>
-      </div>
-      <div class="hint" style="margin-top:.8rem;">Skill and equipment choices for this class appear in the Background &amp; Skills and Equipment steps.</div>
-    </div>
-  `;
-}
-
-/* ------------------------------ Step: Abilities ------------------------------ */
-const STANDARD_ARRAY = [15,14,13,12,10,8];
-const POINT_BUY_COST = {8:0,9:1,10:2,11:3,12:4,13:5,14:7,15:9};
-
-function renderAbilitiesStep(c, body){
-  body.innerHTML = `
-    <div class="panel">
-      <h2>Ability Scores</h2>
-      <div class="method-tabs">
-        <button class="btn ${c.abilityMethod==='standard'?'':'secondary'}" data-m="standard">Standard array</button>
-        <button class="btn ${c.abilityMethod==='pointbuy'?'':'secondary'}" data-m="pointbuy">Point buy</button>
-        <button class="btn ${c.abilityMethod==='manual'?'':'secondary'}" data-m="manual">Manual / rolled</button>
-      </div>
-      <div id="method-body"></div>
-    </div>
-    ${stepFooter(c)}
-  `;
-  document.querySelectorAll('.method-tabs button').forEach(b=>{
-    b.addEventListener('click', ()=>{ c.abilityMethod = b.dataset.m; touch(c); renderAbilitiesStep(c, body); });
-  });
-  const mb = document.getElementById('method-body');
-  if(c.abilityMethod==='pointbuy') renderPointBuy(c, mb);
-  else renderSimpleAbilities(c, mb, c.abilityMethod==='standard');
-  wireFooter(c);
-}
-
-function renderSimpleAbilities(c, mb, isStandard){
-  mb.innerHTML = `
-    ${isStandard ? `<div class="hint" style="margin-bottom:1rem;">Assign each value from the standard array (${STANDARD_ARRAY.join(', ')}) to an ability — each value used once.</div>` : `<div class="hint" style="margin-bottom:1rem;">Enter your rolled or chosen scores directly.</div>`}
-    <div class="grid-3">
-      ${ABILS.map(a=>`
-        <div class="ability-box">
-          <div class="lbl">${a.toUpperCase()}</div>
-          ${isStandard ? `
-            <select id="a-${a}" style="width:100%; text-align:center; font-family:var(--font-display); font-size:1.1rem;">
-              ${STANDARD_ARRAY.map(v=>`<option value="${v}" ${c.abilityScores[a]===v?'selected':''}>${v}</option>`).join('')}
-            </select>
-          ` : `<input id="a-${a}" type="number" min="1" max="30" value="${c.abilityScores[a]}">`}
-          <div class="mod" id="m-${a}">${fmtMod(mod(c.abilityScores[a]))}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-  ABILS.forEach(a=>{
-    document.getElementById('a-'+a).addEventListener(isStandard?'change':'input', e=>{
-      const v = parseInt(e.target.value)||10;
-      c.abilityScores[a]=v;
-      document.getElementById('m-'+a).textContent = fmtMod(mod(v));
+  const bind = (id, prop) => {
+    document.getElementById(id).addEventListener('input', (e)=>{
+      if(prop.includes('.')){
+        const [a,b] = prop.split('.');
+        c[a][b] = e.target.value;
+      } else {
+        c[prop] = e.target.type==='number' ? parseInt(e.target.value)||1 : e.target.value;
+      }
       touch(c);
     });
-  });
+  };
+  bind('id-name', 'name'); bind('id-player', 'playerName'); bind('id-align', 'alignment');
+  bind('id-level', 'level'); bind('id-traits', 'personality.traits'); bind('id-ideals', 'personality.ideals');
+  bind('id-bonds', 'personality.bonds'); bind('id-flaws', 'personality.flaws');
 }
 
-function renderPointBuy(c, mb){
-  const total = ABILS.reduce((s,a)=>s+(POINT_BUY_COST[c.abilityScores[a]]??0),0);
-  const budget = 27;
-  mb.innerHTML = `
-    <div class="pool-readout">Points used: ${total} / ${budget}</div>
-    <div class="grid-3">
-      ${ABILS.map(a=>`
-        <div class="ability-box">
-          <div class="lbl">${a.toUpperCase()}</div>
-          <div style="display:flex; align-items:center; justify-content:center; gap:.4rem; margin:.35rem 0 .2rem;">
-            <button class="btn ghost" data-a="${a}" data-d="-1" style="font-size:1rem;">−</button>
-            <span style="font-family:var(--font-display); font-size:1.3rem; min-width:2ch; display:inline-block; text-align:center;">${c.abilityScores[a]}</span>
-            <button class="btn ghost" data-a="${a}" data-d="1" style="font-size:1rem;">+</button>
-          </div>
-          <div class="mod">${fmtMod(mod(c.abilityScores[a]))}</div>
+async function renderRaceStep(main, c){
+  main.innerHTML = `<div class="loader"><div class="spinner"></div> Loading races...</div>`;
+  const races = await getRaces();
+  main.innerHTML = `
+    <div class="topbar"><h1>Select Race</h1></div>
+    <div class="card-grid">
+      ${races.map(r=>`
+        <div class="card ${c.raceIndex === r.index ? 'selected' : ''}" data-idx="${r.index}">
+          <h3>${esc(r.name)} ${r.homebrew ? '<span class="pill">Homebrew</span>':''}</h3>
         </div>
       `).join('')}
     </div>
-    <div class="hint">Point-buy scores range 8–15 before racial bonuses. Standard 27-point budget.</div>
   `;
-  mb.querySelectorAll('button[data-a]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const a = btn.dataset.a, d = parseInt(btn.dataset.d);
-      const cur = c.abilityScores[a];
-      const next = cur + d;
-      if(next<8||next>15) return;
-      const nextTotal = total - (POINT_BUY_COST[cur]??0) + (POINT_BUY_COST[next]??0);
-      if(d>0 && nextTotal>budget) return;
-      c.abilityScores[a]=next; touch(c); renderPointBuy(c, mb);
+  main.querySelectorAll('.card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      c.raceIndex = card.dataset.idx;
+      touch(c); render();
     });
   });
 }
 
-/* ------------------------------ Step: Background & Skills ------------------------------ */
-const FALLBACK_BACKGROUNDS = [{index:"acolyte", name:"Acolyte", desc:"You have spent your life in service to a temple."}];
+async function renderClassStep(main, c){
+  main.innerHTML = `<div class="loader"><div class="spinner"></div> Loading classes...</div>`;
+  const classes = await getClasses();
+  main.innerHTML = `
+    <div class="topbar"><h1>Select Class</h1></div>
+    <div class="card-grid">
+      ${classes.map(cl=>`
+        <div class="card ${c.classIndex === cl.index ? 'selected' : ''}" data-idx="${cl.index}">
+          <h3>${esc(cl.name)} ${cl.homebrew ? '<span class="pill">Homebrew</span>':''}</h3>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  main.querySelectorAll('.card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      c.classIndex = card.dataset.idx;
+      touch(c); render();
+    });
+  });
+}
 
-async function renderBackgroundStep(c, body){
-  body.innerHTML = `<div class="panel"><h2>Background</h2><div class="loader"><div class="spinner"></div> Loading…</div></div>`;
-  let backgrounds = await getBackgrounds();
-  if(!backgrounds.length) backgrounds = FALLBACK_BACKGROUNDS;
+function renderAbilitiesStep(main, c){
+  main.innerHTML = `
+    <div class="topbar"><h1>Ability Scores</h1></div>
+    <div class="panel">
+      <div class="grid-3">
+        ${ABILS.map(a=>`
+          <div class="ability-box">
+            <div class="lbl">${a.toUpperCase()}</div>
+            <input type="number" class="abil-inp" data-abil="${a}" value="${c.abilityScores[a]}" min="3" max="20">
+            <div class="mod">${fmtMod(mod(c.abilityScores[a]))}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  main.querySelectorAll('.abil-inp').forEach(inp=>{
+    inp.addEventListener('input', (e)=>{
+      c.abilityScores[inp.dataset.abil] = parseInt(e.target.value)||10;
+      touch(c);
+      inp.nextElementSibling.textContent = fmtMod(mod(c.abilityScores[inp.dataset.abil]));
+    });
+  });
+}
 
-  let classDetail = null, skillChoiceCount = 2, availableSkills = SKILLS.map(s=>s[0]);
-  try{
-    if(c.classIndex){
-      classDetail = await getClassDetail(c.classIndex);
-      const choice = (classDetail.proficiency_choices||[]).find(pc => (pc.from?.options||[]).some(o=>o.item?.index?.startsWith?.('skill-') || o.item?.index));
-      if(choice){
-        skillChoiceCount = choice.choose || 2;
-        const opts = choice.from.options.map(o=>o.item.index.replace(/^skill-/,''));
-        if(opts.length) availableSkills = opts;
-      }
-    }
-  }catch(e){/* ignore, use defaults */}
-
-  body.innerHTML = `
+async function renderBackgroundStep(main, c){
+  main.innerHTML = `<div class="loader"><div class="spinner"></div> Loading backgrounds...</div>`;
+  const backgrounds = await getBackgrounds();
+  main.innerHTML = `
+    <div class="topbar"><h1>Background &amp; Skills</h1></div>
     <div class="panel">
       <h2>Background</h2>
-      <div class="grid-2">
-        <div>
-          <div class="field">
-            <label>Background</label>
-            <select id="bg-select">
-              <option value="">— custom —</option>
-              ${backgrounds.map(b=>`<option value="${b.index}" ${c.backgroundIndex===b.index?'selected':''}>${b.name}</option>`).join('')}
-            </select>
+      <div class="card-grid" style="margin-bottom:1rem;">
+        ${backgrounds.map(b=>`
+          <div class="card ${c.backgroundIndex === b.index ? 'selected':''}" data-idx="${b.index}">
+            <h3>${esc(b.name)}</h3>
           </div>
-          ${!c.backgroundIndex ? `<div class="field"><label>Custom background name</label><input id="bg-custom" value="${esc(c.backgroundCustom)}"></div>` : ''}
-        </div>
-        <div class="field"><label>Languages known</label>
-          <div class="chip-list" id="lang-chips">${c.languages.map((l,i)=>`<span class="chip">${esc(l)} <button data-i="${i}">✕</button></span>`).join('')}</div>
-          <input id="lang-add" placeholder="Type a language, press Enter" style="margin-top:.5rem; width:100%;">
-        </div>
+        `).join('')}
       </div>
     </div>
     <div class="panel">
-      <h2>Skill proficiencies</h2>
-      <div class="hint" style="margin-bottom:.8rem;">
-        ${classDetail ? `Choose ${skillChoiceCount} from your class's list${availableSkills.length<SKILLS.length? ' ('+availableSkills.map(s=>s.replace(/-/g,' ')).join(', ')+')':''}.` : 'Pick your class first for a tailored list — showing all skills for now.'}
-        Selected: <span id="skill-count">${c.skillProfs.length}</span> / ${skillChoiceCount}
-      </div>
-      <div id="skill-list">
-        ${SKILLS.map(([idx,ab])=>{
-          const eligible = availableSkills.includes(idx);
-          return `
-          <div class="skill-row" style="${eligible?'':'opacity:.4;'}">
-            <input type="checkbox" data-skill="${idx}" ${c.skillProfs.includes(idx)?'checked':''} ${eligible?'':'disabled'}>
-            <span class="sname">${idx.replace(/-/g,' ')}</span>
-            <span class="sability">${ab.toUpperCase()}</span>
-          </div>`;
-        }).join('')}
+      <h2>Skill Proficiencies</h2>
+      <div class="grid-2">
+        ${SKILLS.map(([sname, sabil])=>`
+          <div class="skill-row">
+            <input type="checkbox" class="skill-check" data-skill="${sname}" ${c.skillProfs.includes(sname)?'checked':''}>
+            <span class="sname">${sname.replace(/-/g,' ')}</span>
+            <span class="sability">${sabil.toUpperCase()}</span>
+          </div>
+        `).join('')}
       </div>
     </div>
-    ${stepFooter(c)}
   `;
 
-  document.getElementById('bg-select').addEventListener('change', e=>{
-    c.backgroundIndex = e.target.value || null;
-    touch(c); renderBackgroundStep(c, body);
-  });
-  const bgCustom = document.getElementById('bg-custom');
-  if(bgCustom) bgCustom.addEventListener('input', e=>{ c.backgroundCustom = e.target.value; touch(c); });
-
-  document.getElementById('lang-add').addEventListener('keydown', e=>{
-    if(e.key==='Enter' && e.target.value.trim()){
-      c.languages.push(e.target.value.trim());
-      e.target.value=''; touch(c); renderBackgroundStep(c, body);
-    }
-  });
-  document.querySelectorAll('#lang-chips button').forEach(b=>{
-    b.addEventListener('click', ()=>{ c.languages.splice(parseInt(b.dataset.i),1); touch(c); renderBackgroundStep(c, body); });
+  main.querySelectorAll('.card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      c.backgroundIndex = card.dataset.idx;
+      const bg = backgrounds.find(b=>b.index===c.backgroundIndex);
+      if(bg && bg.skills) c.skillProfs = Array.from(new Set([...c.skillProfs, ...bg.skills]));
+      touch(c); render();
+    });
   });
 
-  document.querySelectorAll('#skill-list input[type=checkbox]').forEach(cb=>{
-    cb.addEventListener('change', ()=>{
-      const idx = cb.dataset.skill;
-      if(cb.checked){
-        if(c.skillProfs.length >= skillChoiceCount){ cb.checked=false; showToast(`You can only choose ${skillChoiceCount} skills.`); return; }
-        c.skillProfs.push(idx);
-      }else{
-        c.skillProfs = c.skillProfs.filter(s=>s!==idx);
-      }
-      document.getElementById('skill-count').textContent = c.skillProfs.length;
+  main.querySelectorAll('.skill-check').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const sk = chk.dataset.skill;
+      if(chk.checked) c.skillProfs.push(sk);
+      else c.skillProfs = c.skillProfs.filter(s=>s!==sk);
       touch(c);
     });
   });
-  wireFooter(c);
 }
 
-/* ------------------------------ Step: Equipment ------------------------------ */
-async function renderEquipmentStep(c, body){
-  body.innerHTML = `<div class="panel"><h2>Equipment</h2><div class="loader"><div class="spinner"></div> Loading equipment list…</div></div>`;
-  let equipmentList = [];
-  try{ equipmentList = await getEquipmentList(); }catch(e){/* leave empty, manual entry still works */}
-
-  body.innerHTML = `
+function renderEquipmentStep(main, c){
+  main.innerHTML = `
+    <div class="topbar"><h1>Equipment</h1></div>
     <div class="panel">
-      <h2>Add equipment</h2>
-      <div class="grid-2">
-        <div class="field">
-          <label>Search the equipment list</label>
-          <input id="eq-search" list="eq-datalist" placeholder="Start typing an item name…">
-          <datalist id="eq-datalist">${equipmentList.map(e=>`<option value="${esc(e.name)}">`).join('')}</datalist>
-        </div>
-        <div class="field"><label>Gold pieces (gp)</label><input id="gp" type="number" min="0" value="${c.gold}"></div>
+      <div class="field">
+        <label>Equipment &amp; Inventory Notes</label>
+        <textarea id="equip-notes" rows="8" style="width:100%;">${esc(c.equipmentNotes)}</textarea>
       </div>
-      <button class="btn secondary" id="add-eq-btn">Add item</button>
-    </div>
-    <div class="panel">
-      <h2>Carried equipment</h2>
-      <div id="eq-rows">
-        ${c.equipment.length ? c.equipment.map((it,i)=>`
-          <div class="equip-row">
-            <span class="en">${esc(it.name)}</span>
-            <input type="number" min="1" value="${it.qty}" data-i="${i}" class="eq-qty">
-            <button class="btn ghost eq-del" data-i="${i}">✕</button>
-          </div>
-        `).join('') : '<p class="hint">No equipment added yet.</p>'}
+      <div class="field">
+        <label>Gold Pieces (GP)</label>
+        <input type="number" id="equip-gold" value="${c.gold||0}">
       </div>
     </div>
-    <div class="panel">
-      <h2>Notes</h2>
-      <textarea id="eq-notes" rows="3" style="width:100%;" placeholder="Container details, magic item notes, attunement, etc.">${esc(c.equipmentNotes)}</textarea>
-    </div>
-    ${stepFooter(c)}
   `;
-
-  document.getElementById('gp').addEventListener('input', e=>{ c.gold = parseInt(e.target.value)||0; touch(c); });
-  document.getElementById('add-eq-btn').addEventListener('click', ()=>{
-    const val = document.getElementById('eq-search').value.trim();
-    if(!val) return;
-    const match = equipmentList.find(e=>e.name.toLowerCase()===val.toLowerCase());
-    c.equipment.push({index: match?match.index:val.toLowerCase().replace(/\s+/g,'-'), name: match?match.name:val, qty:1});
-    touch(c);
-    renderEquipmentStep(c, body);
-  });
-  document.querySelectorAll('.eq-qty').forEach(inp=>{
-    inp.addEventListener('input', ()=>{ c.equipment[parseInt(inp.dataset.i)].qty = Math.max(1, parseInt(inp.value)||1); touch(c); });
-  });
-  document.querySelectorAll('.eq-del').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ c.equipment.splice(parseInt(btn.dataset.i),1); touch(c); renderEquipmentStep(c, body); });
-  });
-  document.getElementById('eq-notes').addEventListener('input', e=>{ c.equipmentNotes = e.target.value; touch(c); });
-  wireFooter(c);
+  document.getElementById('equip-notes').addEventListener('input', (e)=>{ c.equipmentNotes = e.target.value; touch(c); });
+  document.getElementById('equip-gold').addEventListener('input', (e)=>{ c.gold = parseInt(e.target.value)||0; touch(c); });
 }
 
-/* ------------------------------ Step: Spells ------------------------------ */
-async function renderSpellsStep(c, body){
-  if(!c.classIndex){
-    body.innerHTML = `<div class="panel"><h2>Spells</h2><p class="hint">Pick a class first — not every class casts spells.</p></div>${stepFooter(c)}`;
-    wireFooter(c); return;
-  }
-  body.innerHTML = `<div class="panel"><h2>Spells</h2><div class="loader"><div class="spinner"></div> Checking spellcasting…</div></div>`;
-  try{
-    const classDetail = await getClassDetail(c.classIndex);
-    if(!classDetail.spellcasting && !isHomebrewIndex(c.classIndex)){
-      body.innerHTML = `<div class="panel"><h2>Spells</h2><p class="hint">${esc(classDetail.name)} doesn't cast spells in the core rules (barring subclass features not modeled here).</p></div>${stepFooter(c)}`;
-      wireFooter(c); return;
-    }
-    const spellData = await getClassSpells(c.classIndex, classDetail);
-    const spells = spellData.results || [];
-    const cantrips = spells.filter(s=>s.level===0);
-    const leveled = spells.filter(s=>s.level>0);
-
-    body.innerHTML = `
-      <div class="panel">
-        <h2>${esc(classDetail.name)} spells</h2>
-        <div class="hint" style="margin-bottom:1rem;">
-          Slot counts and "spells known" vary by class/level in the full rules — pick freely here and adjust to your table's rules. Selected: cantrips ${c.spells.cantrips.length}, spells ${c.spells.known.length}.
-        </div>
-        <h4 style="color:var(--ink-dim); font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.5rem;">Cantrips</h4>
-        <div class="chip-list" style="margin-bottom:1.2rem;">
-          ${cantrips.map(s=>`<span class="chip" data-idx="${s.index}" data-kind="cantrips" style="cursor:pointer; ${c.spells.cantrips.includes(s.index)?'border-color:var(--ember); color:var(--ember-bright);':''}">${esc(s.name)}</span>`).join('')}
-        </div>
-        <h4 style="color:var(--ink-dim); font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.5rem;">Leveled spells</h4>
-        <div class="chip-list">
-          ${leveled.map(s=>`<span class="chip" data-idx="${s.index}" data-kind="known" style="cursor:pointer; ${c.spells.known.includes(s.index)?'border-color:var(--ember); color:var(--ember-bright);':''}">${esc(s.name)} <em style="opacity:.6; font-style:normal;">lvl ${s.level}</em></span>`).join('')}
-        </div>
+function renderSpellsStep(main, c){
+  main.innerHTML = `
+    <div class="topbar"><h1>Spells</h1></div>
+    <div class="panel">
+      <p class="hint">Spell management is available for spellcasting classes.</p>
+      <div class="field">
+        <label>Spellcasting Notes &amp; Known Spells</label>
+        <textarea id="spell-notes" rows="8" style="width:100%;">${esc(c.notes)}</textarea>
       </div>
-      ${stepFooter(c)}
-    `;
-    body.querySelectorAll('.chip[data-idx]').forEach(chip=>{
-      chip.addEventListener('click', ()=>{
-        const kind = chip.dataset.kind, idx = chip.dataset.idx;
-        const arr = c.spells[kind];
-        const pos = arr.indexOf(idx);
-        if(pos>=0) arr.splice(pos,1); else arr.push(idx);
-        touch(c);
-        renderSpellsStep(c, body);
-      });
-    });
-    wireFooter(c);
-  }catch(err){
-    body.innerHTML = `<div class="error-box">Couldn't load spell data: ${esc(err.message)}.</div>${stepFooter(c)}`;
-    wireFooter(c);
-  }
+    </div>
+  `;
+  document.getElementById('spell-notes').addEventListener('input', (e)=>{ c.notes = e.target.value; touch(c); });
 }
 
-/* ------------------------------ Step: Sheet ------------------------------ */
-async function renderSheetStep(c, body){
-  body.innerHTML = `<div class="panel"><h2>Character Sheet</h2><div class="loader"><div class="spinner"></div> Assembling sheet…</div></div>`;
-  let raceDetail=null, subraceDetail=null, classDetail=null;
-  try{
-    if(c.raceIndex) raceDetail = await getRaceDetail(c.raceIndex);
-    if(c.subraceIndex && !isHomebrewIndex(c.subraceIndex)) subraceDetail = await api('/subraces/'+c.subraceIndex);
-    if(c.classIndex) classDetail = await getClassDetail(c.classIndex);
-  }catch(e){ /* proceed with what we have */ }
-
-  const abilities = effectiveAbilities(c, raceDetail, subraceDetail);
+function renderSheetStep(main, c){
   const pb = profBonus(c.level);
-  const conMod = mod(abilities.con);
-  const hitDie = classDetail? classDetail.hit_die : 8;
-  const maxHpCalc = hitDie + conMod + (c.level-1)*(Math.floor(hitDie/2)+1 + conMod);
-  const ac = 10 + mod(abilities.dex);
-  const savingProfs = (classDetail?.saving_throws||[]).map(s=>s.index);
-
-  const sheetHtml = buildSheetHtml(c, {raceDetail, subraceDetail, classDetail, abilities, pb, maxHpCalc, ac, savingProfs});
-
-  body.innerHTML = `
-    <div class="panel" style="background:none; border:none; padding:0;">
-      <div class="btn-row" style="margin-top:0;">
-        <button class="btn" id="btn-export-pdf">Export as PDF</button>
-        <button class="btn secondary" id="btn-export-xml">Export as XML</button>
-        <label class="btn secondary" style="display:inline-flex; align-items:center;">Import XML<input type="file" id="import-xml" accept=".xml" style="display:none;"></label>
-        <button class="btn secondary" id="btn-refresh-content">Refresh content</button>
-      </div>
+  main.innerHTML = `
+    <div class="topbar">
+      <h1>Character Sheet</h1>
+      <button class="btn" id="print-btn">Print Sheet</button>
     </div>
-    <div class="sheet" id="sheet-view">${sheetHtml}</div>
-    ${stepFooter(c)}
-  `;
-  document.getElementById('btn-export-pdf').addEventListener('click', ()=>exportPdf(sheetHtml));
-  document.getElementById('btn-export-xml').addEventListener('click', ()=>exportXml(c));
-  document.getElementById('import-xml').addEventListener('change', (e)=>importXml(e));
-  document.getElementById('btn-refresh-content').addEventListener('click', forceRefreshContent);
-  wireFooter(c);
-}
-
-function buildSheetHtml(c, ctx){
-  const {raceDetail, subraceDetail, classDetail, abilities, pb, maxHpCalc, ac, savingProfs} = ctx;
-  const hp = c.hp.max!=null ? c.hp : {max:maxHpCalc, current:maxHpCalc, temp:0};
-  const skillRows = SKILLS.map(([idx,ab])=>{
-    const proficient = c.skillProfs.includes(idx);
-    const val = mod(abilities[ab]) + (proficient?pb:0);
-    return `<div class="statline"><span>${proficient?'●':'○'} ${idx.replace(/-/g,' ')} <span style="opacity:.55;">(${ab})</span></span><span>${fmtMod(val)}</span></div>`;
-  }).join('');
-  const saveRows = ABILS.map(a=>{
-    const proficient = savingProfs.includes(a);
-    const val = mod(abilities[a]) + (proficient?pb:0);
-    return `<div class="statline"><span>${proficient?'●':'○'} ${ABIL_NAMES[a]}</span><span>${fmtMod(val)}</span></div>`;
-  }).join('');
-  const passivePerception = 10 + mod(abilities.wis) + (c.skillProfs.includes('perception')?pb:0);
-
-  return `
-    <div class="sheet-head">
-      <div>
-        <h2>${esc(c.name)}</h2>
-        <div class="sub">${esc(raceDetail?.name||'—')}${subraceDetail? ' ('+esc(subraceDetail.name)+')':''} · ${esc(classDetail?.name||'—')}, Level ${c.level} · ${esc(c.alignment||'—')}</div>
+    <div class="sheet" id="sheet-content">
+      <div class="sheet-head">
+        <div>
+          <h2>${esc(c.name)}</h2>
+          <div class="sub">Level ${c.level} | ${esc(c.alignment || 'Unaligned')}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="sub">Proficiency Bonus: +${pb}</div>
+        </div>
       </div>
-      <div class="sub" style="text-align:right;">${esc(c.playerName||'')}<br>${esc(c.backgroundIndex||c.backgroundCustom||'')}</div>
-    </div>
-    <div class="sheet-grid">
-      <div>
+      <div class="sheet-grid">
         <div class="sheet-block">
           <h4>Ability Scores</h4>
           <div class="abil-grid">
-            ${ABILS.map(a=>`<div class="abil-cell"><div class="an">${a.toUpperCase()}</div><div class="av">${abilities[a]}</div><div class="am">${fmtMod(mod(abilities[a]))}</div></div>`).join('')}
+            ${ABILS.map(a=>`
+              <div class="abil-cell">
+                <div class="an">${a.toUpperCase()}</div>
+                <div class="av">${c.abilityScores[a]}</div>
+                <div class="am">${fmtMod(mod(c.abilityScores[a]))}</div>
+              </div>
+            `).join('')}
           </div>
         </div>
-        <div class="sheet-block">
-          <h4>Saving Throws</h4>
-          ${saveRows}
-        </div>
-        <div class="sheet-block">
-          <h4>Combat</h4>
-          <div class="sheet-hp">
-            <div class="hb"><div class="n">${ac}</div><div class="l">Armor Class</div></div>
-            <div class="hb"><div class="n">${fmtMod(mod(abilities.dex))}</div><div class="l">Initiative</div></div>
-            <div class="hb"><div class="n">${raceDetail?.speed||30}</div><div class="l">Speed (ft)</div></div>
-          </div>
-          <div class="sheet-hp" style="margin-top:.6rem;">
-            <div class="hb"><div class="n">${hp.max}</div><div class="l">Hit Point Max</div></div>
-            <div class="hb"><div class="n">${pb>=0?'+':''}${pb}</div><div class="l">Proficiency</div></div>
-            <div class="hb"><div class="n">${passivePerception}</div><div class="l">Passive Perception</div></div>
-          </div>
-        </div>
-      </div>
-      <div>
         <div class="sheet-block">
           <h4>Skills</h4>
-          ${skillRows}
-        </div>
-      </div>
-      <div>
-        <div class="sheet-block">
-          <h4>Equipment</h4>
-          <ul>${c.equipment.map(it=>`<li>${esc(it.name)} ${it.qty>1?`×${it.qty}`:''}</li>`).join('') || '<li style="list-style:none; opacity:.6;">None recorded</li>'}</ul>
-          <div class="statline"><span>Gold</span><span>${c.gold} gp</span></div>
-          ${c.equipmentNotes? `<p class="prose">${esc(c.equipmentNotes)}</p>`:''}
+          ${SKILLS.map(([sname, sabil])=>{
+            const isProf = c.skillProfs.includes(sname);
+            const m = mod(c.abilityScores[sabil]) + (isProf ? pb : 0);
+            return `<div class="statline"><span>${isProf?'●':'○'} ${sname.replace(/-/g,' ')}</span><span>${fmtMod(m)}</span></div>`;
+          }).join('')}
         </div>
         <div class="sheet-block">
-          <h4>Languages</h4>
-          <p class="prose">${c.languages.join(', ') || '—'}</p>
-        </div>
-        ${(c.spells.cantrips.length||c.spells.known.length) ? `
-        <div class="sheet-block">
-          <h4>Spells</h4>
-          ${c.spells.cantrips.length? `<p class="prose"><strong>Cantrips:</strong> ${c.spells.cantrips.map(s=>s.replace(/-/g,' ')).join(', ')}</p>`:''}
-          ${c.spells.known.length? `<p class="prose"><strong>Known:</strong> ${c.spells.known.map(s=>s.replace(/-/g,' ')).join(', ')}</p>`:''}
-        </div>`:''}
-        <div class="sheet-block">
-          <h4>Personality</h4>
-          <p class="prose"><strong>Traits:</strong> ${esc(c.personality.traits)||'—'}</p>
-          <p class="prose"><strong>Ideals:</strong> ${esc(c.personality.ideals)||'—'}</p>
-          <p class="prose"><strong>Bonds:</strong> ${esc(c.personality.bonds)||'—'}</p>
-          <p class="prose"><strong>Flaws:</strong> ${esc(c.personality.flaws)||'—'}</p>
+          <h4>Equipment &amp; Notes</h4>
+          <div class="prose">${esc(c.equipmentNotes || 'No equipment listed.')}</div>
+          <p><strong>Gold:</strong> ${c.gold||0} gp</p>
+          <h4>Personality &amp; Backstory</h4>
+          <p><strong>Traits:</strong> ${esc(c.personality.traits)}</p>
+          <p><strong>Ideals:</strong> ${esc(c.personality.ideals)}</p>
+          <p><strong>Bonds:</strong> ${esc(c.personality.bonds)}</p>
+          <p><strong>Flaws:</strong> ${esc(c.personality.flaws)}</p>
         </div>
       </div>
     </div>
-    ${c.notes? `<div class="sheet-block"><h4>Notes</h4><p class="prose">${esc(c.notes)}</p></div>`:''}
   `;
+
+  document.getElementById('print-btn').addEventListener('click', ()=>{
+    document.getElementById('print-area').innerHTML = document.getElementById('sheet-content').outerHTML;
+    window.print();
+  });
 }
 
-/* ------------------------------ Export: PDF (print) ------------------------------ */
-function exportPdf(sheetHtml){
-  const area = document.getElementById('print-area');
-  area.innerHTML = `<div class="sheet">${sheetHtml}</div>`;
-  document.title = (activeChar()?.name || 'character') + ' — Character Sheet';
-  window.print();
-}
-
-/* ------------------------------ Export / Import: XML ------------------------------ */
-function xmlEsc(s){ return (s==null?"":String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function exportXml(c){
-  const x = `<?xml version="1.0" encoding="UTF-8"?>
-<character schemaVersion="1">
-  <name>${xmlEsc(c.name)}</name>
-  <playerName>${xmlEsc(c.playerName)}</playerName>
-  <alignment>${xmlEsc(c.alignment)}</alignment>
-  <level>${c.level}</level>
-  <race index="${xmlEsc(c.raceIndex)}" subrace="${xmlEsc(c.subraceIndex)}" />
-  <class index="${xmlEsc(c.classIndex)}" />
-  <background index="${xmlEsc(c.backgroundIndex)}" custom="${xmlEsc(c.backgroundCustom)}" />
-  <abilityScores method="${xmlEsc(c.abilityMethod)}">
-    ${ABILS.map(a=>`<${a}>${c.abilityScores[a]}</${a}>`).join('\n    ')}
-  </abilityScores>
-  <skillProficiencies>${c.skillProfs.map(s=>`<skill>${xmlEsc(s)}</skill>`).join('')}</skillProficiencies>
-  <languages>${c.languages.map(l=>`<language>${xmlEsc(l)}</language>`).join('')}</languages>
-  <equipment gold="${c.gold}">
-    ${c.equipment.map(it=>`<item index="${xmlEsc(it.index)}" qty="${it.qty}">${xmlEsc(it.name)}</item>`).join('\n    ')}
-  </equipment>
-  <equipmentNotes>${xmlEsc(c.equipmentNotes)}</equipmentNotes>
-  <hp max="${c.hp.max??''}" current="${c.hp.current??''}" temp="${c.hp.temp||0}" />
-  <spells>
-    ${c.spells.cantrips.map(s=>`<cantrip>${xmlEsc(s)}</cantrip>`).join('\n    ')}
-    ${c.spells.known.map(s=>`<known>${xmlEsc(s)}</known>`).join('\n    ')}
-  </spells>
-  <personality>
-    <traits>${xmlEsc(c.personality.traits)}</traits>
-    <ideals>${xmlEsc(c.personality.ideals)}</ideals>
-    <bonds>${xmlEsc(c.personality.bonds)}</bonds>
-    <flaws>${xmlEsc(c.personality.flaws)}</flaws>
-  </personality>
-  <notes>${xmlEsc(c.notes)}</notes>
-</character>`;
-  const blob = new Blob([x], {type:'application/xml'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = (c.name || 'character').replace(/[^a-z0-9\-_ ]/gi,'').trim() + '.xml';
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function textOf(doc, tag, parent){
-  const el = (parent||doc).querySelector(tag);
-  return el ? el.textContent : '';
-}
-function importXml(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev)=>{
-    try{
-      const doc = new DOMParser().parseFromString(ev.target.result, 'application/xml');
-      if(doc.querySelector('parsererror')) throw new Error('Malformed XML file');
-      const c = newCharacter(textOf(doc,'name') || 'Imported Character');
-      c.playerName = textOf(doc,'playerName');
-      c.alignment = textOf(doc,'alignment');
-      c.level = parseInt(textOf(doc,'level'))||1;
-      const raceEl = doc.querySelector('race');
-      if(raceEl){ c.raceIndex = raceEl.getAttribute('index')||null; c.subraceIndex = raceEl.getAttribute('subrace')||null; }
-      const classEl = doc.querySelector('class');
-      if(classEl) c.classIndex = classEl.getAttribute('index')||null;
-      const bgEl = doc.querySelector('background');
-      if(bgEl){ c.backgroundIndex = bgEl.getAttribute('index')||null; c.backgroundCustom = bgEl.getAttribute('custom')||''; }
-      const abEl = doc.querySelector('abilityScores');
-      if(abEl){
-        c.abilityMethod = abEl.getAttribute('method')||'manual';
-        ABILS.forEach(a=>{ const v = textOf(doc,a,abEl); if(v) c.abilityScores[a]=parseInt(v); });
-      }
-      c.skillProfs = Array.from(doc.querySelectorAll('skillProficiencies skill')).map(n=>n.textContent);
-      c.languages = Array.from(doc.querySelectorAll('languages language')).map(n=>n.textContent);
-      const eqEl = doc.querySelector('equipment');
-      if(eqEl) c.gold = parseInt(eqEl.getAttribute('gold'))||0;
-      c.equipment = Array.from(doc.querySelectorAll('equipment item')).map(n=>({index:n.getAttribute('index'), qty:parseInt(n.getAttribute('qty'))||1, name:n.textContent}));
-      c.equipmentNotes = textOf(doc,'equipmentNotes');
-      const hpEl = doc.querySelector('hp');
-      if(hpEl) c.hp = {max: hpEl.getAttribute('max')? parseInt(hpEl.getAttribute('max')):null, current: hpEl.getAttribute('current')? parseInt(hpEl.getAttribute('current')):null, temp: parseInt(hpEl.getAttribute('temp'))||0};
-      c.spells.cantrips = Array.from(doc.querySelectorAll('spells cantrip')).map(n=>n.textContent);
-      c.spells.known = Array.from(doc.querySelectorAll('spells known')).map(n=>n.textContent);
-      c.personality = {
-        traits: textOf(doc,'traits'), ideals: textOf(doc,'ideals'),
-        bonds: textOf(doc,'bonds'), flaws: textOf(doc,'flaws'),
-      };
-      c.notes = textOf(doc,'notes');
-      state.characters.push(c);
-      state.activeId = c.id;
-      state.step = 'sheet';
-      persistCharacters();
-      render();
-      showToast('Character imported from XML.');
-    }catch(err){
-      alert('Could not import this file: ' + err.message);
-    }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-}
-
-/* --------------------------------- boot --------------------------------- */
+// Initial Kickoff
 loadCache();
 loadCharacters();
-if(state.characters.length) state.activeId = state.characters.sort((a,b)=>b.updatedAt-a.updatedAt)[0].id;
-render();
+if(!state.characters.length){
+  state.characters.push(newCharacter("Sample Hero"));
+}
+state.activeId = state.characters[0].id;
+loadAllHomebrew().then(() => render());
+
 </script>
 </body>
 </html>
