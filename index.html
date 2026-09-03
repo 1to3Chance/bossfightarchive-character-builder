@@ -9,20 +9,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=Spectral+SC:wght@600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --void:#141110;
-    --panel:#1c1815;
-    --panel-2:#231e1a;
-    --raised:#2a241f;
-    --line:#3a332b;
-    --line-soft:#2a241f;
-    --ink:#ece4d6;
-    --ink-dim:#b3a996;
-    --ink-faint:#7c7263;
-    --ember:#c7451d;
-    --ember-bright:#e0632f;
-    --gold:#b5903a;
+    /* Core Color Palette */
+    --void:#0B0C10;          /* Primary Background / Text Contrast (Rich Black) */
+    --panel:#13151c;        /* Dark Surface Panel */
+    --panel-2:#1a1d27;      /* Secondary Dark Surface */
+    --raised:#232734;       /* Hover / Raised Surface */
+    --line:#2e3344;         /* Border lines */
+    --line-soft:#1f2330;
+    
+    --ink:#FFFFFF;          /* Primary Typography (Pure White) */
+    --ink-dim:#EAEAEA;      /* Secondary Typography (Off-White / Light Gray) */
+    --ink-faint:#a0a5b5;    /* Muted subtext / labels */
+    
+    --crimson:#8B0000;      /* Secondary Background / Accents (Deep Crimson) */
+    --crimson-bright:#a60000;
+    
+    --blue:#4169E1;         /* Secondary Background / Links / UI (Royal Blue) */
+    --blue-bright:#5a7fe6;
+    
     --hp-green:#5c7a4f;
-    --danger:#a63a3a;
+    --danger:#8B0000;
     --font-display:'Spectral', serif;
     --font-display-sc:'Spectral SC', serif;
     --font-body:'Inter', sans-serif;
@@ -38,12 +44,13 @@
     line-height:1.5;
     min-height:100vh;
   }
-  ::selection{background:var(--ember); color:#fff;}
-  a{color:var(--ember-bright);}
+  ::selection{background:var(--crimson); color:#fff;}
+  a{color:var(--blue);}
+  a:hover{color:var(--blue-bright);}
   h1,h2,h3,h4{font-family:var(--font-display); font-weight:600; margin:0 0 .4em; color:var(--ink);}
   button{font-family:var(--font-body); cursor:pointer;}
   input,select,textarea{font-family:var(--font-body); color:var(--ink); background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius); padding:.5em .65em; font-size:.95rem;}
-  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--ember);}
+  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--blue);}
   label{display:block; font-size:.72rem; letter-spacing:.02em; color:var(--ink-faint); margin-bottom:.3em; text-transform:none;}
   .field{margin-bottom:1rem;}
   .hint{font-size:.78rem; color:var(--ink-faint); margin-top:.3em;}
@@ -57,8 +64,9 @@
   }
   .rail-brand{
     padding:1.1rem 1.1rem .9rem; border-bottom:1px solid var(--line);
+    background:var(--void);
   }
-  .rail-brand .mark{font-family:var(--font-display-sc); font-size:.92rem; letter-spacing:.04em; color:var(--ember-bright);}
+  .rail-brand .mark{font-family:var(--font-display-sc); font-size:.92rem; letter-spacing:.04em; color:var(--blue-bright);}
   .rail-brand .sub{font-size:.72rem; color:var(--ink-faint); margin-top:.2rem;}
   .rail-section{padding:.9rem 1.1rem .3rem; font-size:.68rem; color:var(--ink-faint); letter-spacing:.04em;}
   .char-list{padding:0 .6rem;}
@@ -68,18 +76,18 @@
     border:1px solid transparent;
   }
   .char-item:hover{background:var(--raised);}
-  .char-item.active{background:var(--panel-2); border-color:var(--line);}
-  .char-item .nm{font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .char-item.active{background:var(--panel-2); border-color:var(--blue);}
+  .char-item .nm{font-size:.85rem; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .char-item .meta{font-size:.68rem; color:var(--ink-faint);}
   .char-item .del{opacity:0; background:none; border:none; color:var(--ink-faint); font-size:.9rem; padding:.1rem .3rem;}
   .char-item:hover .del{opacity:1;}
-  .char-item .del:hover{color:var(--danger);}
+  .char-item .del:hover{color:var(--crimson-bright);}
   .new-char-btn{
     margin:.4rem .6rem 1rem; padding:.55rem .6rem; text-align:left;
     background:none; border:1px dashed var(--line); border-radius:var(--radius);
     color:var(--ink-dim); font-size:.85rem; width:calc(100% - 1.2rem);
   }
-  .new-char-btn:hover{border-color:var(--ember); color:var(--ember-bright);}
+  .new-char-btn:hover{border-color:var(--blue); color:var(--blue-bright);}
 
   .steps{padding:0 .6rem; margin-top:auto; border-top:1px solid var(--line); padding-top:.7rem; padding-bottom:.8rem;}
   .step-btn{
@@ -93,8 +101,8 @@
     flex-shrink:0;
   }
   .step-btn.active{color:var(--ink); background:var(--panel-2);}
-  .step-btn.active .num{border-color:var(--ember); color:var(--ember-bright);}
-  .step-btn.done .num{border-color:var(--gold); color:var(--gold);}
+  .step-btn.active .num{border-color:var(--blue); color:var(--blue-bright);}
+  .step-btn.done .num{border-color:var(--crimson); color:var(--crimson-bright);}
   .step-btn:hover{color:var(--ink);}
 
   main{flex:1; min-width:0; padding:2.4rem 3rem 5rem; max-width:980px;}
@@ -109,13 +117,13 @@
   @media (max-width:720px){.grid-2,.grid-3{grid-template-columns:1fr;}}
 
   .btn{
-    background:var(--ember); color:#fff; border:none; padding:.6rem 1.1rem;
+    background:var(--crimson); color:var(--ink); border:none; padding:.6rem 1.1rem;
     border-radius:var(--radius); font-size:.88rem; font-weight:600; letter-spacing:.01em;
   }
-  .btn:hover{background:var(--ember-bright);}
+  .btn:hover{background:var(--crimson-bright);}
   .btn:disabled{background:var(--line); color:var(--ink-faint); cursor:not-allowed;}
   .btn.secondary{background:none; border:1px solid var(--line); color:var(--ink-dim);}
-  .btn.secondary:hover{border-color:var(--ink-dim); color:var(--ink);}
+  .btn.secondary:hover{border-color:var(--blue); color:var(--ink);}
   .btn.ghost{background:none; border:none; color:var(--ink-faint); padding:.4rem .6rem;}
   .btn.ghost:hover{color:var(--ink);}
   .btn-row{display:flex; gap:.6rem; margin-top:1.5rem; flex-wrap:wrap;}
@@ -126,8 +134,8 @@
     background:var(--panel-2); transition:border-color .1s;
   }
   .card:hover{border-color:var(--ink-faint);}
-  .card.selected{border-color:var(--ember); background:#241a15;}
-  .card h3{font-size:.98rem; margin-bottom:.25rem;}
+  .card.selected{border-color:var(--blue); background:#141a29;}
+  .card h3{font-size:.98rem; margin-bottom:.25rem; color:var(--ink);}
   .card p{font-size:.8rem; color:var(--ink-dim); margin:0; line-height:1.45;}
   .card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:.7rem;}
 
@@ -136,19 +144,18 @@
   .search{width:100%; margin-bottom:1rem;}
 
   .loader{display:flex; align-items:center; gap:.6rem; color:var(--ink-faint); font-size:.85rem; padding:1rem 0;}
-  .spinner{width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--ember); border-radius:50%; animation:spin .7s linear infinite;}
+  .spinner{width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--blue); border-radius:50%; animation:spin .7s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
-  .error-box{border:1px solid var(--danger); background:#2a1717; color:#e0b8b8; padding:.9rem 1rem; border-radius:var(--radius); font-size:.85rem; margin-bottom:1rem;}
+  .error-box{border:1px solid var(--crimson); background:#200808; color:#f0a8a8; padding:.9rem 1rem; border-radius:var(--radius); font-size:.85rem; margin-bottom:1rem;}
 
-  .toast{position:fixed; bottom:1.4rem; left:50%; transform:translateX(-50%); background:var(--raised); border:1px solid var(--line); color:var(--ink); padding:.6rem 1.1rem; border-radius:var(--radius); font-size:.85rem; z-index:999; box-shadow:0 6px 24px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;}
+  .toast{position:fixed; bottom:1.4rem; left:50%; transform:translateX(-50%); background:var(--raised); border:1px solid var(--blue); color:var(--ink); padding:.6rem 1.1rem; border-radius:var(--radius); font-size:.85rem; z-index:999; box-shadow:0 6px 24px rgba(0,0,0,.6); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;}
   .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
 
-  /* ability score boxes */
   .ability-box{border:1px solid var(--line); border-radius:var(--radius); padding:.8rem; text-align:center; background:var(--panel-2);}
   .ability-box .lbl{font-family:var(--font-mono); font-size:.68rem; letter-spacing:.08em; color:var(--ink-faint);}
   .ability-box input{width:70px; text-align:center; font-size:1.3rem; font-family:var(--font-display); margin:.35rem 0 .2rem;}
-  .ability-box .mod{font-size:.78rem; color:var(--ink-dim); font-family:var(--font-mono);}
+  .ability-box .mod{font-size:.78rem; color:var(--blue-bright); font-family:var(--font-mono);}
   .pool-readout{font-family:var(--font-mono); font-size:.85rem; color:var(--ink-dim); margin-bottom:1rem;}
   .method-tabs{display:flex; gap:.5rem; margin-bottom:1.2rem;}
   .method-tabs button{flex:1;}
@@ -158,42 +165,43 @@
   table.sheet-table th{color:var(--ink-faint); font-weight:500; font-size:.72rem;}
 
   .skill-row{display:flex; align-items:center; gap:.55rem; padding:.35rem 0; border-bottom:1px solid var(--line-soft); font-size:.85rem;}
-  .skill-row input[type=checkbox]{accent-color:var(--ember);}
-  .skill-row .sname{flex:1;}
+  .skill-row input[type=checkbox]{accent-color:var(--blue);}
+  .skill-row .sname{flex:1; color:var(--ink-dim);}
   .skill-row .sability{font-family:var(--font-mono); font-size:.68rem; color:var(--ink-faint); width:2.2rem;}
-  .skill-row .smod{font-family:var(--font-mono); width:2.6rem; text-align:right;}
+  .skill-row .smod{font-family:var(--font-mono); width:2.6rem; text-align:right; color:var(--ink);}
 
   .equip-row{display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-bottom:1px solid var(--line-soft);}
-  .equip-row .en{flex:1; font-size:.87rem;}
+  .equip-row .en{flex:1; font-size:.87rem; color:var(--ink-dim);}
   .equip-row input[type=number]{width:56px;}
 
   .chip-list{display:flex; flex-wrap:wrap; gap:.4rem;}
-  .chip{background:var(--panel-2); border:1px solid var(--line); border-radius:20px; padding:.25rem .7rem; font-size:.78rem; display:flex; align-items:center; gap:.4rem;}
+  .chip{background:var(--panel-2); border:1px solid var(--line); border-radius:20px; padding:.25rem .7rem; font-size:.78rem; display:flex; align-items:center; gap:.4rem; color:var(--ink-dim);}
   .chip button{background:none; border:none; color:var(--ink-faint); font-size:.85rem; padding:0;}
+  .chip button:hover{color:var(--crimson-bright);}
 
-  /* ---------------- Character sheet (also used for print) ---------------- */
+  /* ---------------- Character sheet (Export / Print view) ---------------- */
   .sheet{
-    background:#f4efe4; color:#231d16; border-radius:2px; padding:2.2rem 2.4rem;
+    background:#EAEAEA; color:#0B0C10; border-radius:2px; padding:2.2rem 2.4rem;
     font-family:var(--font-body);
   }
-  .sheet *{color:#231d16;}
-  .sheet .sheet-head{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #231d16; padding-bottom:.7rem; margin-bottom:1.2rem;}
-  .sheet .sheet-head h2{font-family:var(--font-display); font-size:1.9rem; margin:0;}
-  .sheet .sheet-head .sub{font-size:.82rem; color:#5b5142;}
+  .sheet *{color:#0B0C10;}
+  .sheet .sheet-head{display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #8B0000; padding-bottom:.7rem; margin-bottom:1.2rem;}
+  .sheet .sheet-head h2{font-family:var(--font-display); font-size:1.9rem; margin:0; color:#0B0C10;}
+  .sheet .sheet-head .sub{font-size:.82rem; color:#4169E1;}
   .sheet-grid{display:grid; grid-template-columns:1.1fr 1fr 1.3fr; gap:1.4rem;}
   @media (max-width:900px){.sheet-grid{grid-template-columns:1fr;}}
   .sheet-block{margin-bottom:1.1rem;}
-  .sheet-block h4{font-family:var(--font-display-sc); font-size:.78rem; letter-spacing:.06em; border-bottom:1px solid #cabf9f; padding-bottom:.3rem; margin-bottom:.5rem; color:#5b5142;}
+  .sheet-block h4{font-family:var(--font-display-sc); font-size:.78rem; letter-spacing:.06em; border-bottom:1px solid #353b4e; padding-bottom:.3rem; margin-bottom:.5rem; color:#8B0000;}
   .statline{display:flex; justify-content:space-between; font-size:.86rem; padding:.15rem 0;}
   .abil-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:.5rem;}
-  .abil-cell{border:1px solid #cabf9f; border-radius:4px; text-align:center; padding:.45rem 0;}
-  .abil-cell .an{font-size:.65rem; letter-spacing:.08em; color:#5b5142;}
-  .abil-cell .av{font-family:var(--font-display); font-size:1.15rem;}
-  .abil-cell .am{font-size:.7rem; color:#5b5142;}
+  .abil-cell{border:1px solid #353b4e; border-radius:4px; text-align:center; padding:.45rem 0; background:#ffffff;}
+  .abil-cell .an{font-size:.65rem; letter-spacing:.08em; color:#4169E1;}
+  .abil-cell .av{font-family:var(--font-display); font-size:1.15rem; color:#0B0C10;}
+  .abil-cell .am{font-size:.7rem; color:#8B0000;}
   .sheet-hp{display:flex; gap:.8rem;}
-  .sheet-hp .hb{flex:1; border:1px solid #cabf9f; border-radius:4px; text-align:center; padding:.5rem 0;}
-  .sheet-hp .hb .n{font-family:var(--font-display); font-size:1.3rem;}
-  .sheet-hp .hb .l{font-size:.65rem; color:#5b5142;}
+  .sheet-hp .hb{flex:1; border:1px solid #353b4e; border-radius:4px; text-align:center; padding:.5rem 0; background:#ffffff;}
+  .sheet-hp .hb .n{font-family:var(--font-display); font-size:1.3rem; color:#0B0C10;}
+  .sheet-hp .hb .l{font-size:.65rem; color:#4169E1;}
   .sheet ul{margin:.2rem 0; padding-left:1.1rem; font-size:.85rem;}
   .sheet .prose{font-size:.85rem; white-space:pre-wrap;}
 
@@ -222,7 +230,7 @@
 <script>
 /* =========================================================================
    BOSS FIGHT ARCHIVE — CHARACTER BUILDER
-   Single-file static app. Integrated SRD + Aurora XML / Custom XML support.
+   Single-file static app. No build step, no server. Deploy: GitHub Pages.
    ========================================================================= */
 
 const CONTENT_BASE = "https://www.dnd5eapi.co/api/2014"; 
@@ -230,18 +238,6 @@ const CACHE_KEY = "bfa_content_cache_v1";
 const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12h
 const STORE_KEY = "bfa_characters_v1";
 const SOURCES_KEY = "bfa_homebrew_sources_v1"; 
-const UPLOADS_KEY = "bfa_uploaded_homebrew_v1";
-
-const FALLBACK_BACKGROUNDS = [
-  { index: "acolyte", name: "Acolyte", skills: ["insight", "religion"], source: "Player’s Handbook" },
-  { index: "charlatan", name: "Charlatan", skills: ["deception", "sleight-of-hand"], source: "Player’s Handbook" },
-  { index: "criminal", name: "Criminal", skills: ["deception", "stealth"], source: "Player’s Handbook" },
-  { index: "custom-background", name: "Custom Background", skills: [], source: "Player’s Handbook" },
-  { index: "entertainer", name: "Entertainer", skills: ["acrobatics", "performance"], source: "Player’s Handbook" },
-  { index: "folk-hero", name: "Folk Hero", skills: ["animal-handling", "survival"], source: "Player’s Handbook" },
-  { index: "guild-artisan", name: "Guild Artisan", skills: ["insight", "persuasion"], source: "Player’s Handbook" },
-  { index: "hermit", name: "Hermit", skills: ["medicine", "religion"], source: "Player’s Handbook" }
-];
 
 function loadHomebrewSources(){
   try{ return JSON.parse(localStorage.getItem(SOURCES_KEY) || "[]"); }
@@ -249,16 +245,17 @@ function loadHomebrewSources(){
 }
 function saveHomebrewSources(list){ localStorage.setItem(SOURCES_KEY, JSON.stringify(list)); }
 
+const UPLOADS_KEY = "bfa_uploaded_homebrew_v1"; 
 function loadUploadedFiles(){
   try{ return JSON.parse(localStorage.getItem(UPLOADS_KEY) || "[]"); }
   catch(e){ return []; }
 }
 function saveUploadedFiles(list){
   try{ localStorage.setItem(UPLOADS_KEY, JSON.stringify(list)); return true; }
-  catch(e){ showToast("Couldn't save file — storage limit exceeded."); return false; }
+  catch(e){ showToast("Couldn't save that file — it may be too large for browser storage."); return false; }
 }
 function addUploadedFile(name, xmlText){
-  parseHomebrewXml(xmlText, name);
+  parseHomebrewXml(xmlText, name); // throws if malformed
   const list = loadUploadedFiles();
   const existingIdx = list.findIndex(f=>f.name===name);
   const entry = {name, xml:xmlText, addedAt:Date.now()};
@@ -268,69 +265,167 @@ function addUploadedFile(name, xmlText){
 function removeUploadedFile(name){
   saveUploadedFiles(loadUploadedFiles().filter(f=>f.name!==name));
 }
+function removeUploadedFiles(names){
+  const set = new Set(names);
+  saveUploadedFiles(loadUploadedFiles().filter(f=>!set.has(f.name)));
+}
 
-let homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:0 };
+let homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], features:[], loadedAt:0 };
 
 function slug(s){ return (s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
 
-/* Universal XML Parser supporting both Custom <content> schema and Aurora <elements> schema */
+/* ---------------------------------------------------------------------
+   HOMEBREW CONTENT PARSER
+   Supports both Aurora Builder (<elements><element ...>) and custom XML formats.
+   --------------------------------------------------------------------- */
 function parseHomebrewXml(xmlText, sourceUrl){
   const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
   if(doc.querySelector('parsererror')) throw new Error('Malformed homebrew XML');
-  const out = { races:[], classes:[], backgrounds:[], spells:[], equipment:[] };
+  const out = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], features:[] };
 
-  // 1. Check for Aurora Elements format (<elements><element ...>)
-  const auroraElements = doc.querySelectorAll('elements > element');
-  if(auroraElements.length > 0){
+  // 1. Support Aurora Elements schema (<elements><element ...>)
+  const auroraElements = doc.querySelectorAll('element');
+  if(auroraElements.length > 0) {
     auroraElements.forEach(el => {
       const type = (el.getAttribute('type') || '').toLowerCase();
-      const name = el.getAttribute('name') || 'Unnamed';
-      const src = el.getAttribute('source') || sourceUrl;
-      const idx = 'hb-' + slug(name);
+      const name = el.getAttribute('name') || '';
+      if(!name) return;
 
-      if(type === 'background'){
+      const source = el.getAttribute('source') || sourceUrl;
+      const index = 'hb-' + slug(name);
+      const descEl = el.querySelector('description');
+      const description = descEl ? descEl.textContent.trim() : '';
+
+      if (type === 'background') {
         const skills = [];
         el.querySelectorAll('grant[type="Proficiency"]').forEach(g => {
           const id = g.getAttribute('id') || '';
-          if(id.includes('SKILL_')){
-            const sk = id.split('SKILL_')[1].toLowerCase().replace(/_/g, '-');
-            if(sk) skills.push(sk);
+          if (id.includes('SKILL_')) {
+            let sk = id.replace(/.*SKILL_/, '').toLowerCase();
+            const skillMap = {
+              'sleightofhand': 'sleight-of-hand',
+              'animalhandling': 'animal-handling'
+            };
+            skills.push(skillMap[sk] || sk);
           }
         });
         out.backgrounds.push({
-          index: idx, name: name, homebrew: true, source: src, skills: skills,
-          description: el.querySelector('description')?.textContent || ''
+          index,
+          name,
+          homebrew: true,
+          source,
+          skills,
+          description
         });
-      } else if(type === 'race') {
-        out.races.push({ index: idx, name: name, homebrew: true, source: src, speed: 30, size: 'Medium', ability_bonuses: [], traits: [], languages: [], subraces: [] });
-      } else if(type === 'class') {
-        out.classes.push({ index: idx, name: name, homebrew: true, source: src, hit_die: 8, saving_throws: [], proficiency_choices: [], spellcasting: false });
-      } else if(type === 'spell') {
-        out.spells.push({ index: idx, name: name, homebrew: true, source: src, level: 0, school: '', klass: '', description: el.querySelector('description')?.textContent || '' });
-      } else if(type === 'equipment' || type === 'item') {
-        out.equipment.push({ index: idx, name: name, homebrew: true, source: src, category: '', cost: '' });
+      } else if (type === 'race' || type === 'sub race' || type === 'subrace') {
+        const speed = parseInt(el.querySelector('stat[name="speed"]')?.getAttribute('value')) || 30;
+        const size = el.querySelector('stat[name="size"]')?.getAttribute('value') || 'Medium';
+        const ability_bonuses = [];
+        el.querySelectorAll('stat').forEach(st => {
+          const n = (st.getAttribute('name') || '').toLowerCase();
+          if (['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].includes(n)) {
+            const val = parseInt(st.getAttribute('value')) || 0;
+            if (val > 0) {
+              ability_bonuses.push({
+                ability_score: { index: n.slice(0, 3) },
+                bonus: val
+              });
+            }
+          }
+        });
+        out.races.push({
+          index,
+          name,
+          homebrew: true,
+          source,
+          speed,
+          size,
+          ability_bonuses,
+          traits: [{ name, description }],
+          languages: [],
+          subraces: []
+        });
+      } else if (type === 'class') {
+        let hit_die = 8;
+        const hdStat = el.querySelector('stat[name="hit die"]');
+        if (hdStat) hit_die = parseInt(hdStat.getAttribute('value')) || 8;
+        
+        const saving_throws = [];
+        el.querySelectorAll('grant[type="Proficiency"]').forEach(g => {
+          const id = (g.getAttribute('id') || '').toLowerCase();
+          if (id.includes('savingthrow')) {
+            const abil = id.replace(/.*savingthrow_?/, '').slice(0, 3);
+            if (abil) saving_throws.push({ index: abil, name: abil.toUpperCase() });
+          }
+        });
+
+        out.classes.push({
+          index,
+          name,
+          homebrew: true,
+          source,
+          hit_die,
+          saving_throws,
+          proficiency_choices: [],
+          spellcasting: !!el.querySelector('spellcasting')
+        });
+      } else if (type === 'spell') {
+        const levelStr = el.querySelector('set[name="level"]')?.textContent || '0';
+        const school = el.querySelector('set[name="school"]')?.textContent || '';
+        const klass = el.querySelector('set[name="class"], set[name="spellcastingClass"]')?.textContent || '';
+        out.spells.push({
+          index,
+          name,
+          homebrew: true,
+          source,
+          level: parseInt(levelStr) || 0,
+          school,
+          klass,
+          description
+        });
+      } else if (['item', 'equipment', 'magic item', 'weapon', 'armor'].includes(type)) {
+        const category = el.querySelector('set[name="category"]')?.textContent || type;
+        const cost = el.querySelector('set[name="cost"]')?.textContent || '';
+        out.equipment.push({
+          index,
+          name,
+          homebrew: true,
+          source,
+          category,
+          cost,
+          description
+        });
+      } else {
+        out.features.push({
+          index,
+          name,
+          type: el.getAttribute('type'),
+          source,
+          description
+        });
       }
     });
-    return out;
   }
 
-  // 2. Custom <content> format
+  // 2. Custom <content> schema parser fallback
   doc.querySelectorAll('content > race').forEach(el=>{
     out.races.push({
-      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')),
+      name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
       speed: parseInt(el.querySelector('speed')?.textContent)||30,
       size: el.querySelector('size')?.textContent || 'Medium',
       ability_bonuses: Array.from(el.querySelectorAll('ability_bonus')).map(b=>({ability_score:{index:b.getAttribute('ability')}, bonus:parseInt(b.getAttribute('value'))})),
       traits: Array.from(el.querySelectorAll('trait')).map(t=>({name:t.getAttribute('name'), description:t.querySelector('description')?.textContent||''})),
       languages: Array.from(el.querySelectorAll('language')).map(l=>({name:l.textContent})),
-      subraces: []
+      subraces: [],
     });
   });
 
   doc.querySelectorAll('content > class').forEach(el=>{
     out.classes.push({
-      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')),
+      name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
       hit_die: parseInt(el.getAttribute('hit_die'))||8,
       saving_throws: Array.from(el.querySelectorAll('saving_throw')).map(s=>({index:s.getAttribute('ability'), name:s.getAttribute('ability').toUpperCase()})),
@@ -339,33 +434,38 @@ function parseHomebrewXml(xmlText, sourceUrl){
         if(!sc) return [];
         return [{ choose: parseInt(sc.getAttribute('count'))||2, from:{ options: Array.from(sc.querySelectorAll('option')).map(o=>({item:{index:'skill-'+o.getAttribute('skill')}})) } }];
       })(),
-      spellcasting: !!el.querySelector('spellcasting')
+      spellcasting: !!el.querySelector('spellcasting'),
     });
   });
 
   doc.querySelectorAll('content > background').forEach(el=>{
     out.backgrounds.push({
-      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')),
+      name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
-      skills: Array.from(el.querySelectorAll('skill_proficiency')).map(s=>s.getAttribute('skill'))
+      skills: Array.from(el.querySelectorAll('skill_proficiency')).map(s=>s.getAttribute('skill')),
     });
   });
 
   doc.querySelectorAll('content > spell').forEach(el=>{
     out.spells.push({
-      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')),
+      name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
       level: parseInt(el.getAttribute('level'))||0,
-      school: el.getAttribute('school')||'', klass: el.getAttribute('class')||'',
-      description: el.querySelector('description')?.textContent||''
+      school: el.getAttribute('school')||'',
+      klass: el.getAttribute('class')||'',
+      description: el.querySelector('description')?.textContent||'',
     });
   });
 
   doc.querySelectorAll('content > equipment').forEach(el=>{
     out.equipment.push({
-      index: 'hb-' + slug(el.getAttribute('name')), name: el.getAttribute('name'),
+      index: 'hb-' + slug(el.getAttribute('name')),
+      name: el.getAttribute('name'),
       homebrew:true, source: el.getAttribute('source')||sourceUrl,
-      category: el.getAttribute('category')||'', cost: el.querySelector('cost')?.textContent||''
+      category: el.getAttribute('category')||'',
+      cost: el.querySelector('cost')?.textContent||'',
     });
   });
 
@@ -375,29 +475,27 @@ function parseHomebrewXml(xmlText, sourceUrl){
 async function loadAllHomebrew(force){
   const sources = loadHomebrewSources();
   const uploads = loadUploadedFiles();
-  if(!sources.length && !uploads.length){ 
-    homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], loadedAt:Date.now() }; 
-    return homebrewCache; 
-  }
+  if(!sources.length && !uploads.length){ homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], features:[], loadedAt:Date.now() }; return homebrewCache; }
   if(!force && Date.now() - homebrewCache.loadedAt < CACHE_TTL_MS && homebrewCache.loadedAt) return homebrewCache;
-  const merged = { races:[], classes:[], backgrounds:[], spells:[], equipment:[] };
+  const merged = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], features:[] };
 
   for(const file of uploads){
     try{
       const parsed = parseHomebrewXml(file.xml, file.name);
-      Object.keys(merged).forEach(k=>merged[k].push(...parsed[k]));
+      Object.keys(merged).forEach(k=>merged[k].push(...(parsed[k]||[])));
     }catch(err){
       console.warn('Uploaded file failed to parse:', file.name, err);
       state.errors['hb:'+file.name] = err.message;
     }
   }
+
   for(const url of sources){
     try{
       const res = await fetch(url);
       if(!res.ok) throw new Error('HTTP '+res.status);
       const text = await res.text();
       const parsed = parseHomebrewXml(text, url);
-      Object.keys(merged).forEach(k=>merged[k].push(...parsed[k]));
+      Object.keys(merged).forEach(k=>merged[k].push(...(parsed[k]||[])));
     }catch(err){
       console.warn('Homebrew source failed:', url, err);
       state.errors['hb:'+url] = err.message;
@@ -428,6 +526,7 @@ const STEPS = [
   {id:"sheet", label:"Character Sheet"},
 ];
 
+/* --------------------------- state store --------------------------- */
 const state = {
   characters: [],
   activeId: null,
@@ -455,23 +554,32 @@ function activeChar(){
 function touch(c){ c.updatedAt = Date.now(); persistCharacters(); }
 
 function newCharacter(name){
-  return {
+  const c = {
     id: uid(),
     name: name || "Unnamed Adventurer",
     createdAt: Date.now(), updatedAt: Date.now(),
     playerName:"", alignment:"", level:1, xp:0,
-    raceIndex:null, subraceIndex:null, classIndex:null,
+    raceIndex:null, subraceIndex:null,
+    classIndex:null,
     backgroundIndex:null, backgroundCustom:"",
     abilityMethod:"standard",
     abilityScores:{str:10,dex:10,con:10,int:10,wis:10,cha:10},
-    skillProfs:[], languages:[], equipment:[], equipmentNotes:"", gold:0,
-    hp:{max:null,current:null,temp:0}, hitDiceUsed:0,
+    skillProfs:[],
+    languages:[],
+    equipment:[], 
+    equipmentNotes:"",
+    gold:0,
+    hp:{max:null,current:null,temp:0},
+    hitDiceUsed:0,
     spells:{cantrips:[],known:[]},
     personality:{traits:"",ideals:"",bonds:"",flaws:""},
-    notes:"", inspiration:false
+    notes:"",
+    inspiration:false,
   };
+  return c;
 }
 
+/* --------------------------- content fetching --------------------------- */
 function loadCache(){
   try{ state.cache = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); }
   catch(e){ state.cache = {}; }
@@ -481,7 +589,9 @@ function saveCache(){ localStorage.setItem(CACHE_KEY, JSON.stringify(state.cache
 async function api(path){
   const key = path;
   const entry = state.cache[key];
-  if(entry && (Date.now() - entry.t < CACHE_TTL_MS)) return entry.d;
+  if(entry && (Date.now() - entry.t < CACHE_TTL_MS)){
+    return entry.d;
+  }
   const res = await fetch(CONTENT_BASE + path);
   if(!res.ok) throw new Error("Content fetch failed: " + path + " (" + res.status + ")");
   const data = await res.json();
@@ -498,9 +608,19 @@ async function apiList(kind){
   return _listCache[kind];
 }
 
+function forceRefreshContent(){
+  state.cache = {};
+  _listCache = {};
+  localStorage.removeItem(CACHE_KEY);
+  homebrewCache = { races:[], classes:[], backgrounds:[], spells:[], equipment:[], features:[], loadedAt:0 };
+  showToast("Content cache cleared — latest data will be fetched from the source.");
+  render();
+}
+
 const USE_SRD_KEY = "bfa_use_srd_v1";
 function getUseSrd(){ const v = localStorage.getItem(USE_SRD_KEY); return v===null ? true : v==='1'; }
 function setUseSrd(v){ localStorage.setItem(USE_SRD_KEY, v ? '1':'0'); }
+
 function isHomebrewIndex(idx){ return typeof idx === 'string' && idx.startsWith('hb-'); }
 
 async function getRaces(){
@@ -516,7 +636,7 @@ async function getClasses(){
 async function getBackgrounds(){
   const hb = await loadAllHomebrew();
   let srd = [];
-  if(getUseSrd()){ try{ srd = await apiList('backgrounds'); }catch(e){ srd = FALLBACK_BACKGROUNDS; } }
+  if(getUseSrd()){ try{ srd = await apiList('backgrounds'); }catch(e){ srd = []; } }
   return [...srd, ...hb.backgrounds];
 }
 async function getEquipmentList(){
@@ -531,6 +651,13 @@ async function getRaceDetail(index, list){
 async function getClassDetail(index, list){
   if(isHomebrewIndex(index)) return (list||(await getClasses())).find(cl=>cl.index===index) || null;
   return api('/classes/'+index);
+}
+async function getClassSpells(index, classDetail){
+  if(isHomebrewIndex(index)){
+    const hb = await loadAllHomebrew();
+    return { results: hb.spells.filter(s=>slug(s.klass)===slug(classDetail?.name||'')) };
+  }
+  return api(`/classes/${index}/spells`);
 }
 
 function mod(score){ return Math.floor((score-10)/2); }
@@ -550,8 +677,8 @@ function effectiveAbilities(c, raceData, subraceData){
   const out = {...c.abilityScores};
   const applyBonuses = (bonuses) => {
     (bonuses||[]).forEach(b=>{
-      const key = b.ability_score?.index;
-      if(key) out[key] = (out[key]||10) + b.bonus;
+      const key = b.ability_score.index;
+      out[key] = (out[key]||10) + b.bonus;
     });
   };
   if(raceData) applyBonuses(raceData.ability_bonuses);
@@ -559,16 +686,18 @@ function effectiveAbilities(c, raceData, subraceData){
   return out;
 }
 
+/* ------------------------------- rendering ------------------------------- */
 const appEl = document.getElementById('app');
 
 function renderCharList(){
-  return state.characters.map(ch => `
-    <div class="char-item ${ch.id === state.activeId ? 'active' : ''}" data-id="${ch.id}">
+  if(!state.characters.length) return `<div style="padding:.6rem; color:var(--ink-faint); font-size:.8rem;">No characters yet.</div>`;
+  return state.characters.map(c => `
+    <div class="char-item ${c.id === state.activeId ? 'active' : ''}" data-id="${c.id}">
       <div>
-        <div class="nm">${esc(ch.name)}</div>
-        <div class="meta">Lvl ${ch.level}</div>
+        <div class="nm">${esc(c.name)}</div>
+        <div class="meta">Lvl ${c.level}</div>
       </div>
-      <button class="del" title="Delete">✕</button>
+      <button class="del" title="Delete character">✕</button>
     </div>
   `).join('');
 }
@@ -576,9 +705,10 @@ function renderCharList(){
 function renderStepNav(){
   return `
     <div class="steps">
-      ${STEPS.map((s, i) => `
+      <div class="rail-section" style="padding-left:0;">Builder Steps</div>
+      ${STEPS.map((s, idx) => `
         <button class="step-btn ${state.step === s.id ? 'active' : ''}" data-step="${s.id}">
-          <span class="num">${i+1}</span>
+          <span class="num">${idx + 1}</span>
           <span>${s.label}</span>
         </button>
       `).join('')}
@@ -589,20 +719,91 @@ function renderStepNav(){
 function renderEmptyState(){
   return `
     <div class="empty-state">
-      <h2>No Character Selected</h2>
-      <p>Select a character from the left rail or create a new one to begin.</p>
+      <h2>Welcome to Boss Fight Archive</h2>
+      <p>Select or create a character on the left sidebar to start building.</p>
     </div>
   `;
 }
 
 function onNewCharacter(){
-  const c = newCharacter("New Adventurer");
+  const c = newCharacter("New Character");
   state.characters.unshift(c);
   state.activeId = c.id;
   state.step = "identity";
   state.showSettings = false;
   persistCharacters();
   render();
+}
+
+function renderMain(c){
+  const main = document.querySelector('main');
+  main.innerHTML = `<div class="topbar"><h1>${esc(c.name)}</h1><div class="status">Step: ${state.step}</div></div><div class="panel"><p>Content loading for ${state.step}...</p></div>`;
+}
+
+function renderSettingsPanel(){
+  const main = document.querySelector('main');
+  const sources = loadHomebrewSources();
+  const uploads = loadUploadedFiles();
+  main.innerHTML = `
+    <div class="topbar"><h1>Content Sources</h1></div>
+    <div class="panel">
+      <h2>Where character content comes from</h2>
+      <div class="field" style="display:flex; align-items:center; gap:.6rem;">
+        <input type="checkbox" id="use-srd" ${getUseSrd()?'checked':''} style="width:auto;">
+        <label style="margin:0;" for="use-srd">Include the free, open-license D&amp;D 5e SRD content (races, classes, spells, equipment)</label>
+      </div>
+      <div class="hint">Turn this off if you only want the content from your own files below.</div>
+    </div>
+    <div class="panel">
+      <h2>Upload your own content files</h2>
+      <p class="hint" style="margin-bottom:1rem;">Upload XML files (Aurora elements format or homebrew XML schema). Parsed and stored locally in this browser.</p>
+      <input type="file" id="file-upload" accept=".xml" multiple style="margin-bottom:1rem;">
+      <div id="upload-list">
+        ${uploads.length ? uploads.map(f=>`
+          <div class="equip-row">
+            <span class="en">${esc(f.name)} <span class="hint" style="display:inline;">— added ${new Date(f.addedAt).toLocaleDateString()}</span></span>
+            <button class="btn ghost upload-del" data-name="${esc(f.name)}">✕</button>
+          </div>
+        `).join('') : '<p class="hint">No files uploaded yet.</p>'}
+      </div>
+      <div class="btn-row">
+        <button class="btn secondary" id="reload-sources">Reload content now</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('use-srd').addEventListener('change', (e)=>{ setUseSrd(e.target.checked); });
+  document.getElementById('file-upload').addEventListener('change', (e)=>{
+    const files = Array.from(e.target.files);
+    let count = 0;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          addUploadedFile(file.name, evt.target.result);
+          count++;
+          if(count === files.length) {
+            showToast(`Uploaded ${count} file(s)`);
+            loadAllHomebrew(true).then(() => renderSettingsPanel());
+          }
+        } catch(err) {
+          showToast(`Error reading ${file.name}: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+    });
+  });
+
+  main.querySelectorAll('.upload-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      removeUploadedFile(btn.dataset.name);
+      loadAllHomebrew(true).then(() => renderSettingsPanel());
+    });
+  });
+
+  document.getElementById('reload-sources')?.addEventListener('click', () => {
+    forceRefreshContent();
+  });
 }
 
 function render(){
@@ -623,10 +824,8 @@ function render(){
     </div>
     <main>${state.showSettings ? '' : (c ? '' : renderEmptyState())}</main>
   `;
-
   document.getElementById('btn-new-char').addEventListener('click', onNewCharacter);
   document.getElementById('btn-content-sources').addEventListener('click', ()=>{ state.showSettings = true; render(); });
-
   appEl.querySelectorAll('.char-item').forEach(el=>{
     el.addEventListener('click', (e)=>{
       if(e.target.closest('.del')) return;
@@ -636,13 +835,12 @@ function render(){
       render();
     });
   });
-
   appEl.querySelectorAll('.char-item .del').forEach(el=>{
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
       const id = el.closest('.char-item').dataset.id;
       const ch = state.characters.find(x=>x.id===id);
-      if(confirm(`Delete "${ch.name}"?`)){
+      if(confirm(`Delete "${ch.name}"? This can't be undone.`)){
         state.characters = state.characters.filter(x=>x.id!==id);
         persistCharacters();
         if(state.activeId===id) state.activeId = state.characters[0]?.id || null;
@@ -653,7 +851,7 @@ function render(){
 
   if(state.showSettings){
     renderSettingsPanel();
-  } else if(c) {
+  } else if(c){
     appEl.querySelectorAll('.step-btn').forEach(el=>{
       el.addEventListener('click', ()=>{ state.step = el.dataset.step; render(); });
     });
@@ -661,344 +859,11 @@ function render(){
   }
 }
 
-function renderSettingsPanel(){
-  const main = document.querySelector('main');
-  const sources = loadHomebrewSources();
-  const uploads = loadUploadedFiles();
-  main.innerHTML = `
-    <div class="topbar"><h1>Content Sources</h1></div>
-    <div class="panel">
-      <h2>Options</h2>
-      <div class="field" style="display:flex; align-items:center; gap:.6rem;">
-        <input type="checkbox" id="use-srd" ${getUseSrd()?'checked':''} style="width:auto;">
-        <label style="margin:0;" for="use-srd">Include D&amp;D 5e SRD content (races, classes, spells, equipment)</label>
-      </div>
-    </div>
-    <div class="panel">
-      <h2>Upload XML Content Files</h2>
-      <p class="hint" style="margin-bottom:1rem;">Upload XML files (Aurora elements or Boss Fight Archive XML schema). Parsed locally in your browser.</p>
-      <input type="file" id="file-upload" accept=".xml" multiple style="margin-bottom:1rem;">
-      <div id="upload-list">
-        ${uploads.length ? uploads.map(f=>`
-          <div class="equip-row">
-            <span class="en">${esc(f.name)} <span class="hint">— added ${new Date(f.addedAt).toLocaleDateString()}</span></span>
-            <button class="btn ghost upload-del" data-name="${esc(f.name)}">✕</button>
-          </div>
-        `).join('') : '<p class="hint">No files uploaded yet.</p>'}
-      </div>
-    </div>
-    <div class="panel">
-      <h2>GitHub XML URLs</h2>
-      <div class="field">
-        <label>Raw Github URLs (one per line)</label>
-        <textarea id="sources-input" rows="4" style="width:100%;">${sources.join('\n')}</textarea>
-      </div>
-      <div class="btn-row">
-        <button class="btn" id="save-sources-btn">Save Sources</button>
-        <button class="btn secondary" id="close-settings-btn">Back to Builder</button>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('use-srd').addEventListener('change', (e)=>{ setUseSrd(e.target.checked); });
-  document.getElementById('file-upload').addEventListener('change', async (e)=>{
-    const files = Array.from(e.target.files);
-    for(const file of files){
-      const text = await file.text();
-      addUploadedFile(file.name, text);
-    }
-    await loadAllHomebrew(true);
-    renderSettingsPanel();
-  });
-  main.querySelectorAll('.upload-del').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      removeUploadedFile(btn.dataset.name);
-      await loadAllHomebrew(true);
-      renderSettingsPanel();
-    });
-  });
-  document.getElementById('save-sources-btn').addEventListener('click', async ()=>{
-    const raw = document.getElementById('sources-input').value;
-    const list = raw.split('\n').map(s=>s.trim()).filter(Boolean);
-    saveHomebrewSources(list);
-    await loadAllHomebrew(true);
-    showToast('Sources saved and loaded');
-  });
-  document.getElementById('close-settings-btn').addEventListener('click', ()=>{ state.showSettings = false; render(); });
-}
-
-function renderMain(c){
-  const main = document.querySelector('main');
-  if(state.step === 'identity') renderIdentityStep(main, c);
-  else if(state.step === 'race') renderRaceStep(main, c);
-  else if(state.step === 'class') renderClassStep(main, c);
-  else if(state.step === 'abilities') renderAbilitiesStep(main, c);
-  else if(state.step === 'background') renderBackgroundStep(main, c);
-  else if(state.step === 'equipment') renderEquipmentStep(main, c);
-  else if(state.step === 'spells') renderSpellsStep(main, c);
-  else if(state.step === 'sheet') renderSheetStep(main, c);
-}
-
-function renderIdentityStep(main, c){
-  main.innerHTML = `
-    <div class="topbar"><h1>Character Identity</h1></div>
-    <div class="panel grid-2">
-      <div class="field">
-        <label>Character Name</label>
-        <input type="text" id="id-name" value="${esc(c.name)}">
-      </div>
-      <div class="field">
-        <label>Player Name</label>
-        <input type="text" id="id-player" value="${esc(c.playerName)}">
-      </div>
-      <div class="field">
-        <label>Alignment</label>
-        <input type="text" id="id-align" value="${esc(c.alignment)}" placeholder="e.g. Neutral Good">
-      </div>
-      <div class="field">
-        <label>Level</label>
-        <input type="number" id="id-level" value="${c.level}" min="1" max="20">
-      </div>
-    </div>
-    <div class="panel">
-      <h2>Personality</h2>
-      <div class="grid-2">
-        <div class="field"><label>Traits</label><textarea id="id-traits" rows="3">${esc(c.personality.traits)}</textarea></div>
-        <div class="field"><label>Ideals</label><textarea id="id-ideals" rows="3">${esc(c.personality.ideals)}</textarea></div>
-        <div class="field"><label>Bonds</label><textarea id="id-bonds" rows="3">${esc(c.personality.bonds)}</textarea></div>
-        <div class="field"><label>Flaws</label><textarea id="id-flaws" rows="3">${esc(c.personality.flaws)}</textarea></div>
-      </div>
-    </div>
-  `;
-
-  const bind = (id, prop) => {
-    document.getElementById(id).addEventListener('input', (e)=>{
-      if(prop.includes('.')){
-        const [a,b] = prop.split('.');
-        c[a][b] = e.target.value;
-      } else {
-        c[prop] = e.target.type==='number' ? parseInt(e.target.value)||1 : e.target.value;
-      }
-      touch(c);
-    });
-  };
-  bind('id-name', 'name'); bind('id-player', 'playerName'); bind('id-align', 'alignment');
-  bind('id-level', 'level'); bind('id-traits', 'personality.traits'); bind('id-ideals', 'personality.ideals');
-  bind('id-bonds', 'personality.bonds'); bind('id-flaws', 'personality.flaws');
-}
-
-async function renderRaceStep(main, c){
-  main.innerHTML = `<div class="loader"><div class="spinner"></div> Loading races...</div>`;
-  const races = await getRaces();
-  main.innerHTML = `
-    <div class="topbar"><h1>Select Race</h1></div>
-    <div class="card-grid">
-      ${races.map(r=>`
-        <div class="card ${c.raceIndex === r.index ? 'selected' : ''}" data-idx="${r.index}">
-          <h3>${esc(r.name)} ${r.homebrew ? '<span class="pill">Homebrew</span>':''}</h3>
-        </div>
-      `).join('')}
-    </div>
-  `;
-  main.querySelectorAll('.card').forEach(card=>{
-    card.addEventListener('click', ()=>{
-      c.raceIndex = card.dataset.idx;
-      touch(c); render();
-    });
-  });
-}
-
-async function renderClassStep(main, c){
-  main.innerHTML = `<div class="loader"><div class="spinner"></div> Loading classes...</div>`;
-  const classes = await getClasses();
-  main.innerHTML = `
-    <div class="topbar"><h1>Select Class</h1></div>
-    <div class="card-grid">
-      ${classes.map(cl=>`
-        <div class="card ${c.classIndex === cl.index ? 'selected' : ''}" data-idx="${cl.index}">
-          <h3>${esc(cl.name)} ${cl.homebrew ? '<span class="pill">Homebrew</span>':''}</h3>
-        </div>
-      `).join('')}
-    </div>
-  `;
-  main.querySelectorAll('.card').forEach(card=>{
-    card.addEventListener('click', ()=>{
-      c.classIndex = card.dataset.idx;
-      touch(c); render();
-    });
-  });
-}
-
-function renderAbilitiesStep(main, c){
-  main.innerHTML = `
-    <div class="topbar"><h1>Ability Scores</h1></div>
-    <div class="panel">
-      <div class="grid-3">
-        ${ABILS.map(a=>`
-          <div class="ability-box">
-            <div class="lbl">${a.toUpperCase()}</div>
-            <input type="number" class="abil-inp" data-abil="${a}" value="${c.abilityScores[a]}" min="3" max="20">
-            <div class="mod">${fmtMod(mod(c.abilityScores[a]))}</div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-  main.querySelectorAll('.abil-inp').forEach(inp=>{
-    inp.addEventListener('input', (e)=>{
-      c.abilityScores[inp.dataset.abil] = parseInt(e.target.value)||10;
-      touch(c);
-      inp.nextElementSibling.textContent = fmtMod(mod(c.abilityScores[inp.dataset.abil]));
-    });
-  });
-}
-
-async function renderBackgroundStep(main, c){
-  main.innerHTML = `<div class="loader"><div class="spinner"></div> Loading backgrounds...</div>`;
-  const backgrounds = await getBackgrounds();
-  main.innerHTML = `
-    <div class="topbar"><h1>Background &amp; Skills</h1></div>
-    <div class="panel">
-      <h2>Background</h2>
-      <div class="card-grid" style="margin-bottom:1rem;">
-        ${backgrounds.map(b=>`
-          <div class="card ${c.backgroundIndex === b.index ? 'selected':''}" data-idx="${b.index}">
-            <h3>${esc(b.name)}</h3>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-    <div class="panel">
-      <h2>Skill Proficiencies</h2>
-      <div class="grid-2">
-        ${SKILLS.map(([sname, sabil])=>`
-          <div class="skill-row">
-            <input type="checkbox" class="skill-check" data-skill="${sname}" ${c.skillProfs.includes(sname)?'checked':''}>
-            <span class="sname">${sname.replace(/-/g,' ')}</span>
-            <span class="sability">${sabil.toUpperCase()}</span>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-
-  main.querySelectorAll('.card').forEach(card=>{
-    card.addEventListener('click', ()=>{
-      c.backgroundIndex = card.dataset.idx;
-      const bg = backgrounds.find(b=>b.index===c.backgroundIndex);
-      if(bg && bg.skills) c.skillProfs = Array.from(new Set([...c.skillProfs, ...bg.skills]));
-      touch(c); render();
-    });
-  });
-
-  main.querySelectorAll('.skill-check').forEach(chk=>{
-    chk.addEventListener('change', ()=>{
-      const sk = chk.dataset.skill;
-      if(chk.checked) c.skillProfs.push(sk);
-      else c.skillProfs = c.skillProfs.filter(s=>s!==sk);
-      touch(c);
-    });
-  });
-}
-
-function renderEquipmentStep(main, c){
-  main.innerHTML = `
-    <div class="topbar"><h1>Equipment</h1></div>
-    <div class="panel">
-      <div class="field">
-        <label>Equipment &amp; Inventory Notes</label>
-        <textarea id="equip-notes" rows="8" style="width:100%;">${esc(c.equipmentNotes)}</textarea>
-      </div>
-      <div class="field">
-        <label>Gold Pieces (GP)</label>
-        <input type="number" id="equip-gold" value="${c.gold||0}">
-      </div>
-    </div>
-  `;
-  document.getElementById('equip-notes').addEventListener('input', (e)=>{ c.equipmentNotes = e.target.value; touch(c); });
-  document.getElementById('equip-gold').addEventListener('input', (e)=>{ c.gold = parseInt(e.target.value)||0; touch(c); });
-}
-
-function renderSpellsStep(main, c){
-  main.innerHTML = `
-    <div class="topbar"><h1>Spells</h1></div>
-    <div class="panel">
-      <p class="hint">Spell management is available for spellcasting classes.</p>
-      <div class="field">
-        <label>Spellcasting Notes &amp; Known Spells</label>
-        <textarea id="spell-notes" rows="8" style="width:100%;">${esc(c.notes)}</textarea>
-      </div>
-    </div>
-  `;
-  document.getElementById('spell-notes').addEventListener('input', (e)=>{ c.notes = e.target.value; touch(c); });
-}
-
-function renderSheetStep(main, c){
-  const pb = profBonus(c.level);
-  main.innerHTML = `
-    <div class="topbar">
-      <h1>Character Sheet</h1>
-      <button class="btn" id="print-btn">Print Sheet</button>
-    </div>
-    <div class="sheet" id="sheet-content">
-      <div class="sheet-head">
-        <div>
-          <h2>${esc(c.name)}</h2>
-          <div class="sub">Level ${c.level} | ${esc(c.alignment || 'Unaligned')}</div>
-        </div>
-        <div style="text-align:right;">
-          <div class="sub">Proficiency Bonus: +${pb}</div>
-        </div>
-      </div>
-      <div class="sheet-grid">
-        <div class="sheet-block">
-          <h4>Ability Scores</h4>
-          <div class="abil-grid">
-            ${ABILS.map(a=>`
-              <div class="abil-cell">
-                <div class="an">${a.toUpperCase()}</div>
-                <div class="av">${c.abilityScores[a]}</div>
-                <div class="am">${fmtMod(mod(c.abilityScores[a]))}</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-        <div class="sheet-block">
-          <h4>Skills</h4>
-          ${SKILLS.map(([sname, sabil])=>{
-            const isProf = c.skillProfs.includes(sname);
-            const m = mod(c.abilityScores[sabil]) + (isProf ? pb : 0);
-            return `<div class="statline"><span>${isProf?'●':'○'} ${sname.replace(/-/g,' ')}</span><span>${fmtMod(m)}</span></div>`;
-          }).join('')}
-        </div>
-        <div class="sheet-block">
-          <h4>Equipment &amp; Notes</h4>
-          <div class="prose">${esc(c.equipmentNotes || 'No equipment listed.')}</div>
-          <p><strong>Gold:</strong> ${c.gold||0} gp</p>
-          <h4>Personality &amp; Backstory</h4>
-          <p><strong>Traits:</strong> ${esc(c.personality.traits)}</p>
-          <p><strong>Ideals:</strong> ${esc(c.personality.ideals)}</p>
-          <p><strong>Bonds:</strong> ${esc(c.personality.bonds)}</p>
-          <p><strong>Flaws:</strong> ${esc(c.personality.flaws)}</p>
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('print-btn').addEventListener('click', ()=>{
-    document.getElementById('print-area').innerHTML = document.getElementById('sheet-content').outerHTML;
-    window.print();
-  });
-}
-
-// Initial Kickoff
+// Initial initialization
 loadCache();
 loadCharacters();
-if(!state.characters.length){
-  state.characters.push(newCharacter("Sample Hero"));
-}
-state.activeId = state.characters[0].id;
-loadAllHomebrew().then(() => render());
+if(state.characters.length > 0) state.activeId = state.characters[0].id;
+render();
 
 </script>
 </body>
